@@ -13,6 +13,19 @@ cp .env.example .env
 
 Fill in the API keys in `.env`. `LLM_MODEL` is the primary model, `LLM_FALLBACK_MODEL` is used when the primary fails. `.env` is git-ignored; never commit it.
 
+## Data
+
+FabLens uses the [Microsoft Azure Predictive Maintenance](https://www.kaggle.com/datasets/arnabbiswas1/microsoft-azure-predictive-maintenance) dataset from Kaggle: 100 machines with hourly telemetry for 2015, plus errors, maintenance and failures. The data is synthetic and its license is not stated, so it is not part of this repository.
+
+1. Download the archive from Kaggle and extract the five `PdM_*.csv` files into `data/raw/`.
+2. Build the DuckDB database `data/fablens.duckdb`:
+
+   ```shell
+   uv run python -m fablens.ingest
+   ```
+
+Set `DATA_DIR` to use a folder other than `data/`.
+
 ## Development
 
 CI runs the same checks on every pull request and on `main`:
