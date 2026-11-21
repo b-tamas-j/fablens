@@ -92,6 +92,8 @@ terms:
       Every machine counts as operating continuously for 8,760 hours in 2015.
       For a group of machines, such as a model:
       number of machines in the group * 8760 / number of failures of these machines in 2015.
+      Count the machines from the machines table, including machines without failures;
+      an inner join with failures would drop them and understate the result.
 
   - id: critical_machine
     name: Critical machine
