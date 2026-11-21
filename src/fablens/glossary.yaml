@@ -1,0 +1,126 @@
+# Business context for FabLens. The agent uses only these definitions, not general knowledge.
+# Term categories: concept (meaning of the data), kpi (how to calculate a metric),
+# missing_data (questions the data cannot answer).
+
+tables:
+  machines:
+    description: One row per machine, 100 machines in total.
+    columns:
+      machineID: Machine identifier, 1 to 100. Joins all tables.
+      model: Machine model, one of model1, model2, model3, model4.
+      age: Age of the machine in years, 0 to 20.
+  telemetry:
+    description: >-
+      Hourly sensor readings per machine, averaged over the hour,
+      from 2015-01-01 06:00 to 2016-01-01 06:00. The units are not documented.
+    columns:
+      datetime: Time of the hourly reading.
+      machineID: Machine identifier.
+      volt: Voltage.
+      rotate: Rotation speed.
+      pressure: Pressure.
+      vibration: Vibration.
+  errors:
+    description: Errors raised while the machine kept running, in 2015. An error is not a failure.
+    columns:
+      datetime: Time of the error, rounded to the hour.
+      machineID: Machine identifier.
+      errorID: Error type, error1 to error5. The meaning of the types is not documented.
+  maint:
+    description: >-
+      Component replacements, both scheduled (regular inspection) and unscheduled
+      (after a failure), from 2014-06-01 to 2016-01-01.
+    columns:
+      datetime: Time of the replacement.
+      machineID: Machine identifier.
+      comp: Replaced component, comp1 to comp4.
+  failures:
+    description: >-
+      Component replacements caused by a failure, in 2015. One row per failed component;
+      several components of a machine can fail at the same time.
+    columns:
+      datetime: Time of the failure.
+      machineID: Machine identifier.
+      failure: Failed component, comp1 to comp4.
+
+terms:
+  - id: failure
+    name: Failure
+    category: concept
+    aliases: [failures, failed, breakdown, breakdowns]
+    tables: [failures]
+    definition: >-
+      A component replacement caused by a breakdown, recorded in the failures table.
+      Count failures as rows of the failures table: each failed component is one failure,
+      even if several components fail at the same time. Errors are not failures.
+
+  - id: error
+    name: Error
+    category: concept
+    aliases: [errors, error code, error codes, alarm, alarms]
+    tables: [errors]
+    definition: >-
+      An event raised while the machine kept running, recorded in the errors table
+      as error1 to error5. An error is not a failure. The meaning of the error types is not documented.
+
+  - id: maintenance
+    name: Maintenance
+    category: concept
+    aliases: [maint, replacement, replacements, component replacement, repair, repairs]
+    tables: [maint]
+    definition: >-
+      A component replacement recorded in the maint table, either scheduled or after a failure.
+      Most failures also appear in maint, so maint rows must not be counted as failures.
+      The data has no cost, duration or technician for a replacement.
+
+  - id: data_period
+    name: Data period
+    category: concept
+    aliases: [period, time period, time range, date range]
+    tables: [telemetry, errors, maint, failures]
+    definition: >-
+      Telemetry, errors and failures cover the year 2015. Maintenance history starts on 2014-06-01.
+      There is no data after 2016-01-01.
+
+  - id: mtbf
+    name: Mean time between failures (MTBF)
+    category: kpi
+    aliases: [mean time between failures]
+    tables: [machines, failures]
+    definition: >-
+      Operating hours divided by the number of failures in 2015, in hours.
+      Every machine counts as operating continuously for 8,760 hours in 2015.
+      For a group of machines, such as a model:
+      number of machines in the group * 8760 / number of failures of these machines in 2015.
+
+  - id: critical_machine
+    name: Critical machine
+    category: kpi
+    aliases: [critical, critical machines]
+    tables: [failures]
+    definition: A machine with at least 12 failures in 2015.
+
+  - id: repair_cost
+    name: Repair cost
+    category: missing_data
+    aliases: [cost, costs, price, prices, expense, expenses, spend, spending, money, budget]
+    definition: >-
+      The data contains no costs or prices.
+      Available instead: the number, time and component of replacements and failures.
+
+  - id: downtime
+    name: Downtime and repair duration
+    category: missing_data
+    aliases: [repair time, repair duration, outage, availability, mttr, mean time to repair]
+    definition: >-
+      The data records only the time of each replacement, not how long a machine was down
+      or how long a repair took.
+      Available instead: the number and time of failures and replacements.
+
+  - id: failure_prediction
+    name: Failure prediction
+    category: missing_data
+    aliases: [predict, prediction, forecast, future, will fail, next week, next month, probability, likelihood]
+    definition: >-
+      FabLens reports historical data only and has no prediction model. The data ends on 2016-01-01.
+      Available instead: past failures, errors and telemetry of a machine.
