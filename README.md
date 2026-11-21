@@ -68,6 +68,32 @@ The business context lives in [src/fablens/glossary.yaml](src/fablens/glossary.y
 
 To change a definition, edit the file; it is validated when it is loaded.
 
+## Agent
+
+FabLens is one ReAct agent built with LangChain `create_agent` ([src/fablens/agent.py](src/fablens/agent.py)). It reaches the data only through four tools ([src/fablens/tools.py](src/fablens/tools.py)):
+
+| Tool | Purpose |
+| --- | --- |
+| `get_business_context` | Glossary terms, KPI definitions and known data gaps for a question |
+| `list_tables` | Tables with description and row count |
+| `describe_table` | Columns with SQL type and business meaning |
+| `run_sql` | One read-only `SELECT`, at most 100 rows, 10 s timeout |
+
+The database connection is read-only, and file, network and configuration access are blocked, so a query can only read the five tables.
+
+Each reply has a status (`answered`, `cannot_answer` or `error`), the answer, and sources that the code collects from the tool calls: tables, executed SQL with row count, and glossary terms.
+
+The agent uses `LLM_MODEL` and switches to `LLM_FALLBACK_MODEL` when a model call fails. Any LangChain `provider:model` name works; for a local model, run `uv add langchain-ollama` and set `LLM_MODEL=ollama:<model>`.
+
+Try it from Python:
+
+```python
+from fablens.agent import ask, build_agent
+
+reply = ask(build_agent(), "Which machine model had the most failures in 2015?", thread_id="demo")
+print(reply.model_dump_json(indent=2))
+```
+
 ## Development
 
 CI runs the same checks on every pull request and on `main`:
