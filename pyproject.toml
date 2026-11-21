@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Data Agent prototype that answers questions about equipment and service data with traceable sources."
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "duckdb>=2.0.1",
+]
 
 [build-system]
 requires = ["uv_build>=0.9.25,<0.10.0"]
