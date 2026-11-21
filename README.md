@@ -15,6 +15,8 @@ Fill in the API keys in `.env`. `LLM_MODEL` is the primary model, `LLM_FALLBACK_
 
 ## Development
 
+CI runs the same checks on every pull request and on `main`:
+
 ```shell
 uv run ruff check
 uv run ruff format --check
