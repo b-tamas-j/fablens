@@ -1,6 +1,9 @@
 # Environment and secrets
 .env
 
+# Dataset and generated database (never committed)
+data/
+
 # Python
 .venv/
 __pycache__/
