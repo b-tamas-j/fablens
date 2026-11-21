@@ -17,12 +17,13 @@ Fill in the API keys in `.env`. `LLM_MODEL` is the primary model, `LLM_FALLBACK_
 
 FabLens uses the [Microsoft Azure Predictive Maintenance](https://www.kaggle.com/datasets/arnabbiswas1/microsoft-azure-predictive-maintenance) dataset from Kaggle: 100 machines with hourly telemetry for 2015, plus errors, maintenance and failures. The data is synthetic and its license is not stated, so it is not part of this repository.
 
-1. Download the archive from Kaggle and extract the five `PdM_*.csv` files into `data/raw/`.
-2. Build the DuckDB database `data/fablens.duckdb`:
+Build the DuckDB database `data/fablens.duckdb`:
 
-   ```shell
-   uv run python -m fablens.ingest
-   ```
+```shell
+uv run python -m fablens.ingest
+```
+
+If the CSV files are missing from `data/raw/`, the command downloads them from Kaggle first. If the download fails, download the archive manually from the Kaggle page and extract the five `PdM_*.csv` files into `data/raw/`.
 
 Set `DATA_DIR` to use a folder other than `data/`.
 

@@ -1,9 +1,10 @@
+import zipfile
 from pathlib import Path
 
 import duckdb
 import pytest
 
-from fablens.ingest import TABLE_FILES, build_database
+from fablens.ingest import TABLE_FILES, build_database, download_dataset, missing_files
 
 SAMPLE_CSVS = {
     "PdM_machines.csv": '"machineID","model","age"\n1,"model3",18\n2,"model4",7\n',
@@ -66,3 +67,28 @@ def test_build_database_reports_missing_files(raw_dir: Path, tmp_path: Path) -> 
 
     with pytest.raises(FileNotFoundError, match="PdM_maint.csv"):
         build_database(raw_dir, tmp_path / "test.duckdb")
+
+
+def make_archive(path: Path, files: dict[str, str]) -> str:
+    with zipfile.ZipFile(path, "w") as zf:
+        for name, content in files.items():
+            zf.writestr(name, content)
+    return path.as_uri()
+
+
+def test_download_dataset_extracts_csvs(tmp_path: Path) -> None:
+    url = make_archive(tmp_path / "archive.zip", SAMPLE_CSVS)
+    raw = tmp_path / "raw"
+
+    download_dataset(raw, url)
+
+    assert missing_files(raw) == []
+    assert (raw / "PdM_failures.csv").read_text() == SAMPLE_CSVS["PdM_failures.csv"]
+
+
+def test_download_dataset_reports_incomplete_archive(tmp_path: Path) -> None:
+    files = {k: v for k, v in SAMPLE_CSVS.items() if k != "PdM_errors.csv"}
+    url = make_archive(tmp_path / "archive.zip", files)
+
+    with pytest.raises(FileNotFoundError, match="PdM_errors.csv"):
+        download_dataset(tmp_path / "raw", url)
