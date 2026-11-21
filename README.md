@@ -57,6 +57,17 @@ Use this only if the automatic download fails.
 
 3. Run `uv run python -m fablens.ingest` again. The row counts it logs must match the table above.
 
+## Glossary
+
+The business context lives in [src/fablens/glossary.yaml](src/fablens/glossary.yaml). The agent answers with these definitions only, not with the general knowledge of the LLM:
+
+- `tables`: what each table and column means.
+- `terms` with category `concept`: how to read the data, for example that an error is not a failure.
+- `terms` with category `kpi`: how to calculate a metric, for example MTBF or a critical machine.
+- `terms` with category `missing_data`: questions the data cannot answer, such as repair costs, with what is available instead.
+
+To change a definition, edit the file; it is validated when it is loaded.
+
 ## Development
 
 CI runs the same checks on every pull request and on `main`:
