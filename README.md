@@ -23,9 +23,39 @@ Build the DuckDB database `data/fablens.duckdb`:
 uv run python -m fablens.ingest
 ```
 
-If the CSV files are missing from `data/raw/`, the command downloads them from Kaggle first. If the download fails, download the archive manually from the Kaggle page and extract the five `PdM_*.csv` files into `data/raw/`.
+If any CSV file is missing from `data/raw/`, the command first downloads the dataset archive (about 31 MB, no Kaggle account needed) and extracts it there. If the files are already present, it skips the download. Set `DATA_DIR` to use a folder other than `data/`.
 
-Set `DATA_DIR` to use a folder other than `data/`.
+The archive contains five CSV files, each loaded into one table:
+
+| File | Table | Content | Rows |
+| --- | --- | --- | --- |
+| `PdM_machines.csv` | `machines` | Model and age of each machine | 100 |
+| `PdM_telemetry.csv` | `telemetry` | Hourly voltage, rotation, pressure and vibration | 876,100 |
+| `PdM_errors.csv` | `errors` | Errors that did not stop the machine | 3,919 |
+| `PdM_maint.csv` | `maint` | Scheduled and unscheduled component replacements | 3,286 |
+| `PdM_failures.csv` | `failures` | Component replacements caused by a failure | 761 |
+
+### Manual download
+
+Use this only if the automatic download fails.
+
+1. Download the archive, either with the **Download** button on the [Kaggle page](https://www.kaggle.com/datasets/arnabbiswas1/microsoft-azure-predictive-maintenance) (requires a free account) or with curl (on Windows use `curl.exe`):
+
+   ```shell
+   curl -L -o archive.zip https://www.kaggle.com/api/v1/datasets/download/arnabbiswas1/microsoft-azure-predictive-maintenance
+   ```
+
+2. Extract the five CSV files directly into `data/raw/`, without a subfolder:
+
+   ```text
+   data/raw/PdM_errors.csv
+   data/raw/PdM_failures.csv
+   data/raw/PdM_machines.csv
+   data/raw/PdM_maint.csv
+   data/raw/PdM_telemetry.csv
+   ```
+
+3. Run `uv run python -m fablens.ingest` again. The row counts it logs must match the table above.
 
 ## Development
 
