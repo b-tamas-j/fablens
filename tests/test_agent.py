@@ -1,12 +1,15 @@
+import logging
 from collections.abc import Sequence
 from itertools import count
 from pathlib import Path
 from typing import Any
 
+import pytest
 from a2a.types import TaskState
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, ToolMessage
 
+from fablens import agent as agent_module
 from fablens.agent import ask, build_agent
 from fablens.models import Sources
 
@@ -39,7 +42,8 @@ def agent_with(*messages: AIMessage):
     return build_agent(FakeModel(messages=iter(messages)))
 
 
-def test_reply_traces_sql_and_glossary(database: Path) -> None:
+def test_reply_traces_sql_and_glossary(database: Path, caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.INFO)
     question = "Which model had the most failures?"
     agent = agent_with(
         call("get_business_context", question=question),
@@ -56,9 +60,13 @@ def test_reply_traces_sql_and_glossary(database: Path) -> None:
         (FAILURES_PER_MODEL, 1, False)
     ]
     assert "failure" in reply.sources.glossary_terms
+    assert "Reply in thread t1: state=TASK_STATE_COMPLETED" in caplog.text
+    assert "queries=1" in caplog.text
 
 
-def test_tool_error_goes_back_to_the_model(database: Path) -> None:
+def test_tool_error_goes_back_to_the_model(
+    database: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     agent = agent_with(
         call("run_sql", sql="DELETE FROM machines"),
         respond("rejected", "I can only read data."),
@@ -72,6 +80,7 @@ def test_tool_error_goes_back_to_the_model(database: Path) -> None:
     error = next(m for m in messages if isinstance(m, ToolMessage) and m.name == "run_sql")
     assert error.status == "error"
     assert "Only a single SELECT statement is allowed." in error.content
+    assert "Tool run_sql failed" in caplog.text
 
 
 def test_sources_cover_only_the_last_question(database: Path) -> None:
@@ -95,3 +104,17 @@ def test_model_failure_gives_an_error_reply(database: Path) -> None:
 
     assert reply.state == TaskState.TASK_STATE_FAILED
     assert "RuntimeError" in reply.answer
+
+
+def test_fallback_model_answers_and_primary_failure_is_logged(
+    database: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    primary = FailingModel(messages=iter([]))
+    fallback = FakeModel(messages=iter([respond("completed", "Answer from the fallback.")]))
+    monkeypatch.setattr(agent_module, "chat_models", lambda: (primary, fallback))
+
+    reply = ask(build_agent(), "Which machines are critical?", "t1")
+
+    assert reply.state == TaskState.TASK_STATE_COMPLETED
+    assert reply.answer == "Answer from the fallback."
+    assert "Model call to FailingModel failed" in caplog.text

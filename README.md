@@ -89,10 +89,14 @@ Try it from Python:
 
 ```python
 from fablens.agent import ask, build_agent
+from fablens.log_config import configure_logging
 
+configure_logging()
 reply = ask(build_agent(), "Which machine model had the most failures in 2015?", thread_id="demo")
 print(reply.model_dump_json(indent=2))
 ```
+
+The log has one line per reply (thread, task state, answering model, number of queries, duration) and one line per executed SQL with its row count and duration. Tool errors and failed model calls are warnings, so a switch to the fallback model is visible. The level comes from the `LOG_LEVEL` environment variable (default `INFO`); `DEBUG` also logs the questions.
 
 ## Development
 

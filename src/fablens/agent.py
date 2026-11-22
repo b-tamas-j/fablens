@@ -2,6 +2,7 @@
 
 import functools
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -11,11 +12,15 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
     ModelFallbackMiddleware,
+    ModelRequest,
+    ModelResponse,
+    ToolCallRequest,
     ToolErrorMiddleware,
+    wrap_model_call,
 )
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AnyMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
@@ -46,8 +51,23 @@ TOOLS = [
 ]
 
 
-def tool_error_message(exc: Exception, _request: object) -> str | None:
-    return f"Error: {exc}" if isinstance(exc, tools.ToolError) else None
+def tool_error_message(exc: Exception, request: ToolCallRequest) -> str | None:
+    if not isinstance(exc, tools.ToolError):
+        return None
+    call = request.tool_call
+    logger.warning("Tool %s failed: %s Args: %s", call["name"], exc, call["args"])
+    return f"Error: {exc}"
+
+
+@wrap_model_call
+def log_model_errors(
+    request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]
+) -> ModelResponse:
+    try:
+        return handler(request)
+    except Exception as exc:
+        logger.warning("Model call to %s failed: %r", type(request.model).__name__, exc)
+        raise
 
 
 def build_agent(model: BaseChatModel | None = None) -> CompiledStateGraph:
@@ -57,6 +77,8 @@ def build_agent(model: BaseChatModel | None = None) -> CompiledStateGraph:
         model, fallback = chat_models()
         if fallback is not None:
             middleware.append(ModelFallbackMiddleware(fallback))
+    # Inside the fallback middleware, so the failure of each model is logged.
+    middleware.append(log_model_errors)
     return create_agent(
         model,
         TOOLS,
@@ -89,27 +111,49 @@ def collect_sources(messages: list[AnyMessage]) -> Sources:
     return sources
 
 
+def answering_model(messages: list[AnyMessage]) -> str | None:
+    """Name of the model that wrote the last AI message, so a fallback answer is visible."""
+    for message in reversed(messages):
+        if isinstance(message, AIMessage):
+            return message.response_metadata.get("model_name")
+    return None
+
+
 def ask(agent: CompiledStateGraph, question: str, thread_id: str) -> Reply:
     """Answer one question in a chat session; never raises."""
+    logger.debug("Question in thread %s: %s", thread_id, question)
+    start = time.perf_counter()
+    messages: list[AnyMessage] = []
     try:
         state = agent.invoke(
             {"messages": [HumanMessage(question)]},
             {"configurable": {"thread_id": thread_id}},
         )
+        messages = state["messages"]
+        response = state.get("structured_response")
+        if response is None:
+            reply = Reply(
+                state=TaskState.TASK_STATE_FAILED,
+                answer="The agent did not finish its answer. Try again.",
+            )
+        else:
+            reply = Reply(
+                state=FINAL_STATES[response.state],
+                answer=response.answer,
+                sources=collect_sources(messages),
+            )
     except Exception as exc:
-        logger.exception("Agent run failed")
-        return Reply(
+        logger.exception("Agent run failed in thread %s", thread_id)
+        reply = Reply(
             state=TaskState.TASK_STATE_FAILED,
             answer=f"The agent failed ({type(exc).__name__}). Try again.",
         )
-    response = state.get("structured_response")
-    if response is None:
-        return Reply(
-            state=TaskState.TASK_STATE_FAILED,
-            answer="The agent did not finish its answer. Try again.",
-        )
-    return Reply(
-        state=FINAL_STATES[response.state],
-        answer=response.answer,
-        sources=collect_sources(state["messages"]),
+    logger.info(
+        "Reply in thread %s: state=%s model=%s queries=%d duration=%.1fs",
+        thread_id,
+        TaskState.Name(reply.state),
+        answering_model(messages),
+        len(reply.sources.queries),
+        time.perf_counter() - start,
     )
+    return reply
