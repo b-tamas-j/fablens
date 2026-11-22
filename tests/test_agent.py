@@ -35,7 +35,7 @@ def call(name: str, **args: str) -> AIMessage:
 
 
 def respond(state: str, answer: str) -> AIMessage:
-    return call("AgentResponse", state=state, answer=answer)
+    return call("agent_response", state=state, answer=answer)
 
 
 def agent_with(*messages: AIMessage):

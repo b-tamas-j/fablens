@@ -79,12 +79,15 @@ def build_agent(model: BaseChatModel | None = None) -> CompiledStateGraph:
             middleware.append(ModelFallbackMiddleware(fallback))
     # Inside the fallback middleware, so the failure of each model is logged.
     middleware.append(log_model_errors)
+    response_format = ToolStrategy(AgentResponse)
+    # gpt-oss tends to call the tool in snake_case, and Groq rejects unknown tool names.
+    response_format.schema_specs[0].name = "agent_response"
     return create_agent(
         model,
         TOOLS,
         system_prompt=SYSTEM_PROMPT,
         middleware=middleware,
-        response_format=ToolStrategy(AgentResponse),
+        response_format=response_format,
         checkpointer=InMemorySaver(
             serde=JsonPlusSerializer(
                 allowed_msgpack_modules=[(AgentResponse.__module__, AgentResponse.__name__)]
