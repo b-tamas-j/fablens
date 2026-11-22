@@ -1,9 +1,11 @@
 """Agent runtime: one ReAct agent over the FabLens tools, with replies traced by code."""
 
-import json
+import functools
 import logging
-from typing import Literal
+from collections.abc import Callable
+from typing import Any, Literal
 
+import pydantic_core
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
@@ -13,7 +15,7 @@ from langchain.agents.middleware import (
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AnyMessage, HumanMessage, ToolMessage
-from langchain_core.tools import tool
+from langchain_core.tools import BaseTool, tool
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph.state import CompiledStateGraph
@@ -26,45 +28,21 @@ from fablens.prompts import SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
 
 
-@tool(response_format="content_and_artifact", parse_docstring=True)
-def get_business_context(question: str) -> tuple[str, tools.BusinessContext]:
-    """Look up business terms, KPI definitions and known data gaps in the glossary.
+def as_langchain_tool(func: Callable[..., Any]) -> BaseTool:
+    """Expose a tool function to the LLM as JSON, keeping the result as artifact for tracing."""
 
-    Args:
-        question: The user's question, or the business terms in it.
-    """
-    result = tools.get_business_context(question)
-    return result.model_dump_json(exclude={"query"}), result
+    @functools.wraps(func)
+    def run(*args: Any, **kwargs: Any) -> tuple[str, Any]:
+        result = func(*args, **kwargs)
+        return pydantic_core.to_json(result).decode(), result
 
-
-@tool
-def list_tables() -> str:
-    """List the database tables with their business description and row count."""
-    return json.dumps([table.model_dump() for table in tools.list_tables()])
+    return tool(run, response_format="content_and_artifact", parse_docstring=True)
 
 
-@tool(parse_docstring=True)
-def describe_table(table: str) -> str:
-    """Describe the columns of one table: name, SQL type and business meaning.
-
-    Args:
-        table: A table name returned by list_tables.
-    """
-    return tools.describe_table(table).model_dump_json()
-
-
-@tool(response_format="content_and_artifact", parse_docstring=True)
-def run_sql(sql: str) -> tuple[str, tools.QueryResult]:
-    """Run one read-only DuckDB SELECT statement and return at most 100 rows.
-
-    Args:
-        sql: A single SELECT statement.
-    """
-    result = tools.run_sql(sql)
-    return result.model_dump_json(include={"columns", "rows", "row_count", "truncated"}), result
-
-
-TOOLS = [get_business_context, list_tables, describe_table, run_sql]
+TOOLS = [
+    as_langchain_tool(func)
+    for func in (tools.get_business_context, tools.list_tables, tools.describe_table, tools.run_sql)
+]
 
 
 class AgentResponse(BaseModel):
