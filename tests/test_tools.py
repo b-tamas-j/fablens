@@ -58,6 +58,14 @@ def test_run_sql_truncates_large_results(database: Path) -> None:
     assert result.tables == []
 
 
+def test_run_sql_logs_the_query(database: Path, caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level("INFO", logger="fablens.tools")
+
+    run_sql("SELECT count(*)\n  FROM machines")
+
+    assert "1 rows: SELECT count(*) FROM machines" in caplog.text
+
+
 @pytest.mark.parametrize(
     "query",
     [

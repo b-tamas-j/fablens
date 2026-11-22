@@ -10,6 +10,8 @@ from pathlib import Path
 
 import duckdb
 
+from fablens.log_config import configure_logging
+
 logger = logging.getLogger(__name__)
 
 DATASET_URL = (
@@ -74,7 +76,7 @@ def build_database(raw_dir: Path, target: Path) -> dict[str, int]:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    configure_logging()
     raw_dir = data_dir() / "raw"
     if missing_files(raw_dir):
         logger.info("Downloading the dataset to %s", raw_dir)

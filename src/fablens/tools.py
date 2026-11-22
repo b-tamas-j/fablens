@@ -1,6 +1,8 @@
 """Agent tools: schema lookup, business context lookup and read-only SQL."""
 
+import logging
 import threading
+import time
 from functools import cache
 from typing import Any
 
@@ -9,6 +11,8 @@ from pydantic import BaseModel
 
 from fablens.glossary import Glossary, Term, load_glossary
 from fablens.ingest import db_path
+
+logger = logging.getLogger(__name__)
 
 MAX_ROWS = 100
 QUERY_TIMEOUT_S = 10.0
@@ -145,6 +149,7 @@ def run_sql(sql: str) -> QueryResult:
         sql: A single SELECT statement.
     """
     check_select(sql)
+    start = time.perf_counter()
     with connect() as con:
         timer = threading.Timer(QUERY_TIMEOUT_S, con.interrupt)
         timer.start()
@@ -161,7 +166,7 @@ def run_sql(sql: str) -> QueryResult:
         finally:
             timer.cancel()
         tables = referenced_tables(sql, table_names(con))
-    return QueryResult(
+    result = QueryResult(
         sql=sql,
         tables=tables,
         columns=columns,
@@ -169,6 +174,13 @@ def run_sql(sql: str) -> QueryResult:
         row_count=min(len(rows), MAX_ROWS),
         truncated=len(rows) > MAX_ROWS,
     )
+    logger.info(
+        "SQL ran in %.2fs, %d rows: %s",
+        time.perf_counter() - start,
+        result.row_count,
+        " ".join(sql.split()),
+    )
+    return result
 
 
 def get_business_context(question: str) -> BusinessContext:
