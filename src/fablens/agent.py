@@ -90,6 +90,7 @@ def build_agent(model: BaseChatModel | None = None) -> CompiledStateGraph:
                 allowed_msgpack_modules=[(AgentResponse.__module__, AgentResponse.__name__)]
             )
         ),
+        name="fablens",
     )
 
 
