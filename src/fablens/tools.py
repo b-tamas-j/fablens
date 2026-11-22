@@ -1,6 +1,8 @@
 """Agent tools: schema lookup, business context lookup and read-only SQL."""
 
+import logging
 import threading
+import time
 from functools import cache
 from typing import Any
 
@@ -9,6 +11,8 @@ from pydantic import BaseModel
 
 from fablens.glossary import Glossary, Term, load_glossary
 from fablens.ingest import db_path
+
+logger = logging.getLogger(__name__)
 
 MAX_ROWS = 100
 QUERY_TIMEOUT_S = 10.0
@@ -53,7 +57,7 @@ class QueryResult(BaseModel):
 
 
 class BusinessContext(BaseModel):
-    query: str
+    question: str
     terms: list[Term]
     available_terms: list[str]
 
@@ -113,7 +117,11 @@ def list_tables() -> list[TableInfo]:
 
 
 def describe_table(table: str) -> TableDescription:
-    """Describe the columns of one table: name, SQL type and business meaning."""
+    """Describe the columns of one table: name, SQL type and business meaning.
+
+    Args:
+        table: A table name returned by list_tables.
+    """
     with connect() as con:
         rows = con.execute(
             "SELECT column_name, data_type FROM information_schema.columns "
@@ -134,14 +142,19 @@ def describe_table(table: str) -> TableDescription:
     )
 
 
-def run_sql(query: str) -> QueryResult:
-    """Run one read-only SELECT statement and return at most 100 rows."""
-    check_select(query)
+def run_sql(sql: str) -> QueryResult:
+    """Run one read-only DuckDB SELECT statement and return at most 100 rows.
+
+    Args:
+        sql: A single SELECT statement.
+    """
+    check_select(sql)
+    start = time.perf_counter()
     with connect() as con:
         timer = threading.Timer(QUERY_TIMEOUT_S, con.interrupt)
         timer.start()
         try:
-            con.execute(query)
+            con.execute(sql)
             columns = [column[0] for column in con.description]
             rows = con.fetchmany(MAX_ROWS + 1)
         except duckdb.InterruptException:
@@ -152,19 +165,30 @@ def run_sql(query: str) -> QueryResult:
             raise ToolError(f"SQL error: {exc}") from None
         finally:
             timer.cancel()
-        tables = referenced_tables(query, table_names(con))
-    return QueryResult(
-        sql=query,
+        tables = referenced_tables(sql, table_names(con))
+    result = QueryResult(
+        sql=sql,
         tables=tables,
         columns=columns,
         rows=rows[:MAX_ROWS],
         row_count=min(len(rows), MAX_ROWS),
         truncated=len(rows) > MAX_ROWS,
     )
+    logger.info(
+        "SQL ran in %.2fs, %d rows: %s",
+        time.perf_counter() - start,
+        result.row_count,
+        " ".join(sql.split()),
+    )
+    return result
 
 
-def get_business_context(query: str) -> BusinessContext:
-    """Look up business terms, KPI definitions and known data gaps in the glossary."""
-    terms = glossary().search(query)
+def get_business_context(question: str) -> BusinessContext:
+    """Look up business terms, KPI definitions and known data gaps in the glossary.
+
+    Args:
+        question: The user's question, or the business terms in it.
+    """
+    terms = glossary().search(question)
     available = [] if terms else [term.name for term in glossary().terms]
-    return BusinessContext(query=query, terms=terms, available_terms=available)
+    return BusinessContext(question=question, terms=terms, available_terms=available)
