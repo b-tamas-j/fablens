@@ -81,7 +81,7 @@ FabLens is one ReAct agent built with LangChain `create_agent` ([src/fablens/age
 
 The database connection is read-only, and file, network and configuration access are blocked, so a query can only read the five tables.
 
-Each reply has a status (`answered`, `cannot_answer` or `error`), the answer, and sources that the code collects from the tool calls: tables, executed SQL with row count, and glossary terms.
+Each reply has an [A2A](https://a2a-protocol.org/) task state, the answer, and sources that the code collects from the tool calls: tables, executed SQL with row count, and glossary terms. The state is `TASK_STATE_COMPLETED` for an answer from the data, `TASK_STATE_REJECTED` when the data or a definition is missing, and `TASK_STATE_FAILED` for a technical error.
 
 The agent uses `LLM_MODEL` and switches to `LLM_FALLBACK_MODEL` when a model call fails. Any LangChain `provider:model` name works; for a local model, run `uv add langchain-ollama` and set `LLM_MODEL=ollama:<model>`.
 

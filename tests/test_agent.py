@@ -3,6 +3,7 @@ from itertools import count
 from pathlib import Path
 from typing import Any
 
+from a2a.types import TaskState
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, ToolMessage
 
@@ -29,8 +30,8 @@ def call(name: str, **args: str) -> AIMessage:
     return AIMessage("", tool_calls=[{"name": name, "args": args, "id": f"call{next(call_ids)}"}])
 
 
-def respond(status: str, answer: str) -> AIMessage:
-    return call("AgentResponse", status=status, answer=answer)
+def respond(state: str, answer: str) -> AIMessage:
+    return call("AgentResponse", state=state, answer=answer)
 
 
 def agent_with(*messages: AIMessage):
@@ -42,12 +43,12 @@ def test_reply_traces_sql_and_glossary(database: Path) -> None:
     agent = agent_with(
         call("get_business_context", question=question),
         call("run_sql", sql=FAILURES_PER_MODEL),
-        respond("answered", "model3 had the most failures."),
+        respond("completed", "model3 had the most failures."),
     )
 
     reply = ask(agent, question, "t1")
 
-    assert reply.status == "answered"
+    assert reply.state == TaskState.TASK_STATE_COMPLETED
     assert reply.answer == "model3 had the most failures."
     assert reply.sources.tables == ["failures", "machines"]
     assert [(q.sql, q.row_count, q.truncated) for q in reply.sources.queries] == [
@@ -59,12 +60,12 @@ def test_reply_traces_sql_and_glossary(database: Path) -> None:
 def test_tool_error_goes_back_to_the_model(database: Path) -> None:
     agent = agent_with(
         call("run_sql", sql="DELETE FROM machines"),
-        respond("cannot_answer", "I can only read data."),
+        respond("rejected", "I can only read data."),
     )
 
     reply = ask(agent, "Delete all machines.", "t1")
 
-    assert reply.status == "cannot_answer"
+    assert reply.state == TaskState.TASK_STATE_REJECTED
     assert reply.sources.queries == []
     messages = agent.get_state({"configurable": {"thread_id": "t1"}}).values["messages"]
     error = next(m for m in messages if isinstance(m, ToolMessage) and m.name == "run_sql")
@@ -75,8 +76,8 @@ def test_tool_error_goes_back_to_the_model(database: Path) -> None:
 def test_sources_cover_only_the_last_question(database: Path) -> None:
     agent = agent_with(
         call("run_sql", sql="SELECT count(*) FROM machines"),
-        respond("answered", "There are 2 machines."),
-        respond("answered", "You're welcome."),
+        respond("completed", "There are 2 machines."),
+        respond("completed", "You're welcome."),
     )
 
     first = ask(agent, "How many machines are there?", "t1")
@@ -91,5 +92,5 @@ def test_model_failure_gives_an_error_reply(database: Path) -> None:
 
     reply = ask(agent, "Which machines are critical?", "t1")
 
-    assert reply.status == "error"
+    assert reply.state == TaskState.TASK_STATE_FAILED
     assert "RuntimeError" in reply.answer
