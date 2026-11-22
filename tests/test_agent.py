@@ -7,7 +7,8 @@ from a2a.types import TaskState
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, ToolMessage
 
-from fablens.agent import Sources, ask, build_agent
+from fablens.agent import ask, build_agent
+from fablens.models import Sources
 
 FAILURES_PER_MODEL = (
     "SELECT m.model, count(*) AS failures FROM failures f "

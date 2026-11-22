@@ -3,7 +3,7 @@
 import functools
 import logging
 from collections.abc import Callable
-from typing import Annotated, Any, Literal
+from typing import Any
 
 import pydantic_core
 from a2a.types import TaskState
@@ -20,10 +20,10 @@ from langchain_core.tools import BaseTool, tool
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph.state import CompiledStateGraph
-from pydantic import BaseModel, Field, PlainSerializer
 
 from fablens import tools
 from fablens.llm import chat_models
+from fablens.models import FINAL_STATES, AgentResponse, QueryTrace, Reply, Sources
 from fablens.prompts import SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -46,44 +46,6 @@ TOOLS = [
 ]
 
 
-class AgentResponse(BaseModel):
-    """Final answer to the user's question."""
-
-    state: Literal["completed", "rejected"] = Field(
-        description="completed: the answer comes from tool results. "
-        "rejected: the data or a definition needed for a reliable answer is missing."
-    )
-    answer: str = Field(
-        description="Short answer for the user. If rejected: why, and what is available."
-    )
-
-
-FINAL_STATES = {
-    "completed": TaskState.TASK_STATE_COMPLETED,
-    "rejected": TaskState.TASK_STATE_REJECTED,
-}
-
-A2ATaskState = Annotated[TaskState.ValueType, PlainSerializer(TaskState.Name, return_type=str)]
-
-
-class QueryTrace(BaseModel):
-    sql: str
-    row_count: int
-    truncated: bool
-
-
-class Sources(BaseModel):
-    tables: list[str] = []
-    queries: list[QueryTrace] = []
-    glossary_terms: list[str] = []
-
-
-class Reply(BaseModel):
-    state: A2ATaskState
-    answer: str
-    sources: Sources = Field(default_factory=Sources)
-
-
 def tool_error_message(exc: Exception, _request: object) -> str | None:
     return f"Error: {exc}" if isinstance(exc, tools.ToolError) else None
 
@@ -102,7 +64,9 @@ def build_agent(model: BaseChatModel | None = None) -> CompiledStateGraph:
         middleware=middleware,
         response_format=ToolStrategy(AgentResponse),
         checkpointer=InMemorySaver(
-            serde=JsonPlusSerializer(allowed_msgpack_modules=[(__name__, "AgentResponse")])
+            serde=JsonPlusSerializer(
+                allowed_msgpack_modules=[(AgentResponse.__module__, AgentResponse.__name__)]
+            )
         ),
     )
 
