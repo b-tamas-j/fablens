@@ -96,7 +96,28 @@ reply = ask(build_agent(), "Which machine model had the most failures in 2015?",
 print(reply.model_dump_json(indent=2))
 ```
 
+In async code, `aask` does the same and also reports each tool call and its result through the `on_tool_event` callback; the chat UI uses it.
+
 The log has one line per reply (thread, task state, answering model, number of queries, duration) and one line per executed SQL with its row count and duration. Tool errors and failed model calls are warnings, so a switch to the fallback model is visible. The level comes from the `LOG_LEVEL` environment variable (default `INFO`); `DEBUG` also logs the questions.
+
+## Chat UI
+
+The chat UI is a [Chainlit](https://docs.chainlit.io/) app ([src/fablens/ui.py](src/fablens/ui.py)) served by FastAPI ([src/fablens/server.py](src/fablens/server.py)):
+
+```shell
+uv run uvicorn fablens.server:app --port 8000
+```
+
+Open http://localhost:8000. The start screen offers the demo questions.
+
+- Each tool call appears as a step while it runs. Expand it to see the input (for `run_sql`, the SQL) and the result.
+- The answer arrives in one piece, because the model returns it as one structured tool call.
+- The `sources` step below the answer lists the A2A task state, the tables, the glossary entries and each executed SQL with its row count.
+- A refusal is marked with a warning; a technical error is shown as an error message.
+- The stop button cancels the run. The chat keeps its history, but a cancelled or failed question is forgotten, so the next question continues from the last complete answer.
+- The history is kept in memory and is lost when the server stops.
+
+The app is not started with `chainlit run`, because that command enables nest_asyncio, which breaks asyncio on Python 3.14. The Chainlit settings are in [.chainlit/config.toml](.chainlit/config.toml): local origins only, no file upload, no message editing.
 
 ## Development
 
