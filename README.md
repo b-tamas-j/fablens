@@ -128,3 +128,15 @@ uv run ruff check
 uv run ruff format --check
 uv run pytest
 ```
+
+`uv run pytest` skips the eval below, so it never calls an LLM: the unit tests use a fake chat model and a small sample database, and need no API key and no dataset.
+
+## Eval
+
+The eval ([tests/test_eval.py](tests/test_eval.py)) asks the demo questions against the real LLM and the dataset. For each question it checks the A2A task state, the glossary term the agent used, that a completed answer has executed SQL, and the key facts in the answer, such as the 14 critical machines or an MTBF of about 1,387 hours for model3. It needs the API keys in `.env` and the database, and it is not part of CI:
+
+```shell
+uv run pytest -m eval
+```
+
+A failed case prints the whole reply with its SQL, so a wrong definition or query is easy to find. The first runs found that the agent counted distinct failure times instead of failure rows, which led to clearer KPI definitions in the glossary.
