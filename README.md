@@ -151,6 +151,21 @@ print(task.get("artifacts"))
 
 The agent card advertises `PUBLIC_URL` (default `http://localhost:8000`) as the endpoint; set it when the server runs under another address. Tasks and conversations are kept in memory. The interface has no authentication and is meant for local use; in the reference architecture, a gateway in front of the agents handles identity.
 
+## Docker
+
+The [Dockerfile](Dockerfile) builds an image that serves the chat UI and the A2A interface. It installs the locked dependencies without the dev group, and the server runs as a non-root user. The image contains no data and no secrets.
+
+```shell
+docker build --tag fablens .
+docker run --rm -p 127.0.0.1:8000:8000 --env-file .env -v "${PWD}/data:/app/data:ro" fablens
+```
+
+- `--env-file .env` passes the API keys as environment variables. Docker does not strip quotes, so the values in `.env` must not be quoted.
+- Build the database on the host first (see [Data](#data)); the container mounts it read-only.
+- The port is published on `127.0.0.1` only, because the interfaces have no authentication.
+
+Open http://localhost:8000. CI builds the image and checks that it starts.
+
 ## Development
 
 CI runs the same checks on every pull request and on `main`:
