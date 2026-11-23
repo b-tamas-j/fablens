@@ -92,15 +92,18 @@ terms:
       Every machine counts as operating continuously for 8,760 hours in 2015.
       For a group of machines, such as a model:
       number of machines in the group * 8760 / number of failures of these machines in 2015.
-      Count the machines from the machines table, including machines without failures;
-      an inner join with failures would drop them and understate the result.
+      Count the machines in the machines table, including machines without failures,
+      and the failures as rows of the failures table, in two separate subqueries:
+      a join of the two tables drops machines without failures or repeats a machine once per failure.
 
   - id: critical_machine
     name: Critical machine
     category: kpi
     aliases: [critical, critical machines]
     tables: [failures]
-    definition: A machine with at least 12 failures in 2015.
+    definition: >-
+      A machine with at least 12 failures in 2015.
+      Count failures as rows of the failures table, not as distinct failure times.
 
   - id: repair_cost
     name: Repair cost
