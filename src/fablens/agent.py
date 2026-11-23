@@ -1,9 +1,11 @@
 """Agent runtime: one ReAct agent over the FabLens tools, with replies traced by code."""
 
+import asyncio
 import functools
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import aclosing
 from typing import Any
 
 import pydantic_core
@@ -21,6 +23,7 @@ from langchain.agents.middleware import (
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, tool
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
@@ -28,10 +31,22 @@ from langgraph.graph.state import CompiledStateGraph
 
 from fablens import tools
 from fablens.llm import chat_models
-from fablens.models import FINAL_STATES, AgentResponse, QueryTrace, Reply, Sources
+from fablens.models import (
+    FINAL_STATES,
+    AgentResponse,
+    OnToolEvent,
+    QueryTrace,
+    Reply,
+    Sources,
+    ToolEvent,
+    ToolFinished,
+    ToolStarted,
+)
 from fablens.prompts import SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
+
+RESPONSE_TOOL = "agent_response"
 
 
 def as_langchain_tool(func: Callable[..., Any]) -> BaseTool:
@@ -60,11 +75,11 @@ def tool_error_message(exc: Exception, request: ToolCallRequest) -> str | None:
 
 
 @wrap_model_call
-def log_model_errors(
-    request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]
+async def log_model_errors(
+    request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
 ) -> ModelResponse:
     try:
-        return handler(request)
+        return await handler(request)
     except Exception as exc:
         logger.warning("Model call to %s failed: %r", type(request.model).__name__, exc)
         raise
@@ -81,7 +96,7 @@ def build_agent(model: BaseChatModel | None = None) -> CompiledStateGraph:
     middleware.append(log_model_errors)
     response_format = ToolStrategy(AgentResponse)
     # gpt-oss tends to call the tool in snake_case, and Groq rejects unknown tool names.
-    response_format.schema_specs[0].name = "agent_response"
+    response_format.schema_specs[0].name = RESPONSE_TOOL
     return create_agent(
         model,
         TOOLS,
@@ -123,29 +138,81 @@ def answering_model(messages: list[AnyMessage]) -> str | None:
     return None
 
 
-def ask(agent: CompiledStateGraph, question: str, thread_id: str) -> Reply:
-    """Answer one question in a chat session; never raises."""
+def tool_events(update: dict[str, Any], started: dict[str, str]) -> Iterator[ToolEvent]:
+    """Tool calls and results in one graph update, without the structured response tool."""
+    for node_update in update.values():
+        if not isinstance(node_update, dict):
+            continue
+        for message in node_update.get("messages", []):
+            if isinstance(message, AIMessage):
+                for call in message.tool_calls:
+                    if call["name"] != RESPONSE_TOOL:
+                        started[call["id"]] = call["name"]
+                        yield ToolStarted(call_id=call["id"], name=call["name"], args=call["args"])
+            elif isinstance(message, ToolMessage) and message.tool_call_id in started:
+                yield ToolFinished(
+                    call_id=message.tool_call_id,
+                    name=started.pop(message.tool_call_id),
+                    output=message.text,
+                    error=message.status == "error",
+                )
+
+
+async def resume_point(agent: CompiledStateGraph, thread_id: str) -> RunnableConfig:
+    """Continue the thread from its last finished turn, so a cancelled or failed turn is dropped."""
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+    if not (await agent.aget_state(config)).next:
+        return config
+    logger.info("Dropping an unfinished turn in thread %s", thread_id)
+    async for snapshot in agent.aget_state_history(config):
+        if not snapshot.next:
+            return snapshot.config
+    await agent.checkpointer.adelete_thread(thread_id)
+    return config
+
+
+def make_reply(state: dict[str, Any]) -> Reply:
+    response = state.get("structured_response")
+    if response is None:
+        return Reply(
+            state=TaskState.TASK_STATE_FAILED,
+            answer="The agent did not finish its answer. Try again.",
+        )
+    return Reply(
+        state=FINAL_STATES[response.state],
+        answer=response.answer,
+        sources=collect_sources(state["messages"]),
+    )
+
+
+async def aask(
+    agent: CompiledStateGraph,
+    question: str,
+    thread_id: str,
+    on_tool_event: OnToolEvent | None = None,
+) -> Reply:
+    """Answer one question in a chat session, reporting tool calls as they run; never raises."""
     logger.debug("Question in thread %s: %s", thread_id, question)
     start = time.perf_counter()
     messages: list[AnyMessage] = []
+    started: dict[str, str] = {}
+    state: dict[str, Any] = {}
     try:
-        state = agent.invoke(
-            {"messages": [HumanMessage(question)]},
-            {"configurable": {"thread_id": thread_id}},
+        config = await resume_point(agent, thread_id)
+        stream = agent.astream(
+            {"messages": [HumanMessage(question)]}, config, stream_mode=["updates", "values"]
         )
+        # Closing the stream on cancel stops the graph before the next turn starts.
+        async with aclosing(stream):
+            async for mode, data in stream:
+                if mode == "values":
+                    state = data
+                    continue
+                for event in tool_events(data, started):
+                    if on_tool_event is not None:
+                        await on_tool_event(event)
         messages = state["messages"]
-        response = state.get("structured_response")
-        if response is None:
-            reply = Reply(
-                state=TaskState.TASK_STATE_FAILED,
-                answer="The agent did not finish its answer. Try again.",
-            )
-        else:
-            reply = Reply(
-                state=FINAL_STATES[response.state],
-                answer=response.answer,
-                sources=collect_sources(messages),
-            )
+        reply = make_reply(state)
     except Exception as exc:
         logger.exception("Agent run failed in thread %s", thread_id)
         reply = Reply(
@@ -161,3 +228,8 @@ def ask(agent: CompiledStateGraph, question: str, thread_id: str) -> Reply:
         time.perf_counter() - start,
     )
     return reply
+
+
+def ask(agent: CompiledStateGraph, question: str, thread_id: str) -> Reply:
+    """Synchronous aask without tool events, for scripts and tests."""
+    return asyncio.run(aask(agent, question, thread_id))

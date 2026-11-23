@@ -15,3 +15,10 @@ htmlcov/
 
 # Editor
 .vscode/
+
+# Chainlit runtime files (config.toml and chainlit.md are committed)
+.chainlit/translations/
+.files/
+
+# Local experiments
+.scratch/
