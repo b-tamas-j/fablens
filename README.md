@@ -2,6 +2,8 @@
 
 FabLens is a prototype Data Agent: users ask questions about equipment and service data in a chat, and the agent answers from the data with traceable sources (tables, SQL, glossary entries, row count). If the data or a definition is missing, it says so instead of guessing.
 
+It is one building block of an AI Factory reference architecture, described in [docs/architecture.md](docs/architecture.md).
+
 ## Setup
 
 Requirements: [uv](https://docs.astral.sh/uv/). uv installs Python 3.14 (pinned in `.python-version`) if it is missing.
