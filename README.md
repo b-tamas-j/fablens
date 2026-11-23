@@ -119,6 +119,38 @@ Open http://localhost:8000. The start screen offers the demo questions.
 
 The app is not started with `chainlit run`, because that command enables nest_asyncio, which breaks asyncio on Python 3.14. The Chainlit settings are in [.chainlit/config.toml](.chainlit/config.toml): local origins only, no file upload, no message editing.
 
+## A2A interface
+
+The same server lets other agents call FabLens over [A2A](https://a2a-protocol.org/) 1.0 ([src/fablens/a2a_server.py](src/fablens/a2a_server.py)):
+
+- Agent card: http://localhost:8000/.well-known/agent-card.json
+- JSON-RPC endpoint: `http://localhost:8000/a2a`, for example `SendMessage`, `SendStreamingMessage`, `GetTask` and `CancelTask`. Each request needs the header `A2A-Version: 1.0`.
+
+Each question is one task. Its final state is the reply state (`TASK_STATE_COMPLETED`, `TASK_STATE_REJECTED` or `TASK_STATE_FAILED`), and the answer is the message of the final status. A completed or rejected task also has a `sources` artifact with the tables, the executed SQL with row count and the glossary terms. A streaming request also gets a working status for each tool call. A follow-up question with the same `contextId` continues the conversation.
+
+```python
+import uuid
+
+import httpx
+
+message = {
+    "role": "ROLE_USER",
+    "messageId": str(uuid.uuid4()),
+    "parts": [{"text": "What is the MTBF of model3?"}],
+}
+response = httpx.post(
+    "http://localhost:8000/a2a",
+    headers={"A2A-Version": "1.0"},
+    json={"jsonrpc": "2.0", "id": 1, "method": "SendMessage", "params": {"message": message}},
+    timeout=120,
+)
+task = response.json()["result"]["task"]
+print(task["status"]["state"], task["status"]["message"]["parts"][0]["text"])
+print(task.get("artifacts"))
+```
+
+The agent card advertises `PUBLIC_URL` (default `http://localhost:8000`) as the endpoint; set it when the server runs under another address. Tasks and conversations are kept in memory. The interface has no authentication and is meant for local use; in the reference architecture, a gateway in front of the agents handles identity.
+
 ## Development
 
 CI runs the same checks on every pull request and on `main`:

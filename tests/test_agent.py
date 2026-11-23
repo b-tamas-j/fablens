@@ -1,14 +1,12 @@
 import asyncio
 import logging
-from collections.abc import Sequence
-from itertools import count
 from pathlib import Path
 from typing import Any
 
 import pytest
 from a2a.types import TaskState
-from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from fakes import FakeModel, agent_with, call, respond
+from langchain_core.messages import HumanMessage, ToolMessage
 
 from fablens import agent as agent_module
 from fablens.agent import aask, ask, build_agent
@@ -18,29 +16,11 @@ FAILURES_PER_MODEL = (
     "SELECT m.model, count(*) AS failures FROM failures f "
     "JOIN machines m USING (machineID) GROUP BY m.model"
 )
-call_ids = count()
-
-
-class FakeModel(GenericFakeChatModel):
-    def bind_tools(self, tools: Sequence[Any], **kwargs: Any) -> FakeModel:
-        return self
 
 
 class FailingModel(FakeModel):
     def _generate(self, *args: Any, **kwargs: Any) -> Any:
         raise RuntimeError("provider down")
-
-
-def call(name: str, **args: str) -> AIMessage:
-    return AIMessage("", tool_calls=[{"name": name, "args": args, "id": f"call{next(call_ids)}"}])
-
-
-def respond(state: str, answer: str) -> AIMessage:
-    return call("agent_response", state=state, answer=answer)
-
-
-def agent_with(*messages: AIMessage):
-    return build_agent(FakeModel(messages=iter(messages)))
 
 
 async def stop(event: ToolEvent) -> None:
