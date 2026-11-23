@@ -36,3 +36,5 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest]
 testpaths = ["tests"]
+addopts = ["-m", "not eval"]
+markers = ["eval: demo questions against the real LLM and dataset, run with -m eval"]
