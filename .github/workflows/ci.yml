@@ -24,3 +24,17 @@ jobs:
       - run: uv run ruff check
       - run: uv run ruff format --check
       - run: uv run pytest
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - run: docker build --tag fablens .
+      - name: Start the image and fetch the agent card
+        run: |
+          docker run --detach --name fablens --publish 8000:8000 fablens
+          curl --fail --silent --show-error --retry 15 --retry-delay 1 --retry-all-errors \
+            http://localhost:8000/.well-known/agent-card.json || { docker logs fablens; exit 1; }
