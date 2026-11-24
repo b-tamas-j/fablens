@@ -1,4 +1,11 @@
-# FabLens
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/logo_dark.svg">
+    <img src="public/logo_light.svg" alt="FabLens" width="320">
+  </picture>
+</h1>
+
+<p align="center">Answers from equipment data, with the evidence attached.</p>
 
 FabLens is a prototype Data Agent: users ask questions about equipment and service data in a chat, and the agent answers from the data with traceable sources (tables, SQL, glossary entries, row count). If the data or a definition is missing, it says so instead of guessing.
 
@@ -119,7 +126,26 @@ Open http://localhost:8000. The start screen offers the demo questions.
 - The stop button cancels the run. The chat keeps its history, but a cancelled or failed question is forgotten, so the next question continues from the last complete answer.
 - The history is kept in memory and is lost when the server stops.
 
-The app is not started with `chainlit run`, because that command enables nest_asyncio, which breaks asyncio on Python 3.14. The Chainlit settings are in [.chainlit/config.toml](.chainlit/config.toml): local origins only, no file upload, no message editing.
+The app is not started with `chainlit run`, because that command enables nest_asyncio, which breaks asyncio on Python 3.14. The Chainlit settings are in [.chainlit/config.toml](.chainlit/config.toml): local origins only, no file upload, no message editing. The logo and theme are in `public/` (see [Design](#design)).
+
+## Design
+
+The logo shows a wafer from above, with its orientation notch at the bottom. A lens magnifies one die: the agent looks at a specific part of the data and shows where its answer comes from. Amber is the yellow light of a lithography room; it marks what the agent focuses on.
+
+| Colour | Hex | Use |
+| --- | --- | --- |
+| Ink | `#0E1525` | Dark background; wafer and text on light |
+| Amber | `#FFB020` | Lens and accent on dark |
+| Deep amber | `#C77D00` | Lens and accent on light |
+| Slate | `#3B4864`, `#C3CAD6` | Idle dies on dark and on light |
+| Mist | `#EEF1F6` | Text on dark |
+
+- `public/logo_dark.svg`, `public/logo_light.svg`: the logo for each theme, used here and on the chat start screen.
+- `public/favicon.svg`: the mark alone, used as the browser icon and the chat avatar.
+- `public/theme.json`: colours, fonts and corner radius for the light and dark Chainlit theme. On light, buttons use a deeper amber so that white text keeps a 4.5:1 contrast.
+- `public/fablens.css`: dark scrollbars and a faint amber glow behind the logo on the dark start screen.
+
+The UI uses system fonts (Segoe UI and Cascadia Code on Windows), so it loads no web fonts and also works offline.
 
 ## A2A interface
 
