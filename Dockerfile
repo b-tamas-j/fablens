@@ -19,6 +19,7 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY --chown=fablens:fablens .chainlit/config.toml .chainlit/config.toml
 COPY --chown=fablens:fablens chainlit.md ./
+COPY public ./public
 
 ENV PATH="/app/.venv/bin:$PATH"
 USER fablens
