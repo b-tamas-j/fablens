@@ -11,45 +11,11 @@ The AI Factory is the platform on which teams build, deploy and operate data-bas
 
 ## 2. Architecture
 
-```mermaid
-flowchart TB
-    subgraph EXP[Experience]
-        Chat[Chat UI / Teams]
-        API[API clients]
-        Agents[Other agents]
-    end
-    subgraph AF[AI Factory platform - cloud]
-        GW[Agent gateway and registry<br/>SSO, routing, agent cards]
-        subgraph RT[Agent runtime - containers]
-            DA[Data Agent - FabLens]
-            OA[Other agents]
-        end
-        LLMGW[LLM gateway<br/>model routing, quotas, fallback, PII filter]
-        TL[Tool layer - MCP servers<br/>read-only, identity passthrough]
-        CTX[Context layer<br/>business glossary, semantic layer, data catalog]
-    end
-    subgraph XC[Cross-cutting]
-        IAM[Identity and RBAC]
-        GUARD[Guardrails]
-        OBS[Tracing, cost, audit]
-        EVAL[Evaluation]
-        CICD[CI/CD golden path]
-    end
-    Models[Cloud LLMs<br/>self-hosted open-weight models]
-    Lake[(Cloud lakehouse)]
-    OnPrem[(On-prem ERP, MES, service DB)]
-
-    Chat & API & Agents -->|HTTPS / A2A| GW --> RT
-    RT --> LLMGW --> Models
-    RT --> CTX
-    RT -->|MCP| TL
-    TL --> Lake
-    TL -->|private link / secure gateway| OnPrem
-```
+![AI Factory reference architecture: clients, the platform layers, models and data sources, and cross-cutting concerns](architecture.svg)
 
 | Layer | Role | In the prototype |
 | --- | --- | --- |
-| Experience | Chat, API and other agents as clients | Chainlit chat UI and an A2A API on the same server |
+| Experience | Employees in the chat; apps and agents through A2A | Chainlit chat UI (HTTPS, WebSocket) and an A2A API on the same server |
 | Agent gateway and registry | Authentication, routing, catalog of agent cards | Agent card at `/.well-known/agent-card.json`; no gateway, local use only |
 | Agent runtime | Agents in containers, session state | One LangChain ReAct agent (`create_agent`), in-memory checkpointer per conversation, Docker image |
 | LLM gateway | Model choice, quotas, cost, fallback | `init_chat_model` from environment variables: Groq primary, Gemini fallback; Ollama for on-premises |
