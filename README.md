@@ -144,7 +144,7 @@ The logo shows a wafer from above, with its orientation notch at the bottom, as 
 - `public/logo_dark.svg`, `public/logo_light.svg`: the logo for each theme, used here and on the chat start screen.
 - `public/favicon.svg`: the mark alone, used as the browser icon and the chat avatar.
 - `public/theme.json`: colours, fonts and corner radius for the light and dark Chainlit theme. On light, buttons use a deeper amber so that white text keeps a 4.5:1 contrast.
-- `public/fablens.css`: dark scrollbars and a faint amber glow behind the logo on the dark start screen.
+- `public/fablens.css`: dark scrollbars, a faint amber glow behind the logo on the dark start screen, and the logo in the header once the chat has started.
 
 The UI uses system fonts (Segoe UI and Cascadia Code on Windows), so it loads no web fonts and also works offline.
 

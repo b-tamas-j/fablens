@@ -5,3 +5,19 @@
 .dark .welcome-screen {
   background: radial-gradient(ellipse 50% 35% at 50% 40%, hsl(var(--primary) / 0.08), transparent 70%);
 }
+
+#header > div:first-child::after {
+  content: "";
+  width: 100px;
+  height: 32px;
+  margin-left: 8px;
+  background: url("logo_light.svg") left center / contain no-repeat;
+}
+
+.dark #header > div:first-child::after {
+  background-image: url("logo_dark.svg");
+}
+
+:root:has(#welcome-screen) #header > div:first-child::after {
+  display: none;
+}
