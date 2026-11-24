@@ -15,7 +15,7 @@ The AI Factory is the platform on which teams build, deploy and operate data-bas
 
 | Layer | Role | In the prototype |
 | --- | --- | --- |
-| Experience | Chat, API and other agents as clients | Chainlit chat UI and an A2A API on the same server |
+| Experience | Employees in the chat; apps and agents through A2A | Chainlit chat UI (HTTPS, WebSocket) and an A2A API on the same server |
 | Agent gateway and registry | Authentication, routing, catalog of agent cards | Agent card at `/.well-known/agent-card.json`; no gateway, local use only |
 | Agent runtime | Agents in containers, session state | One LangChain ReAct agent (`create_agent`), in-memory checkpointer per conversation, Docker image |
 | LLM gateway | Model choice, quotas, cost, fallback | `init_chat_model` from environment variables: Groq primary, Gemini fallback; Ollama for on-premises |
