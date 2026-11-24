@@ -119,9 +119,10 @@ uv run uvicorn fablens.server:app --port 8000
 
 Open http://localhost:8000. The start screen offers the demo questions.
 
-- Each tool call appears as a step while it runs. Expand it to see the input (for `run_sql`, the SQL) and the result.
+- While the agent works, one line shows in plain words what it is using, for example "Using the failures table".
 - The answer arrives in one piece, because the model returns it as one structured tool call.
-- The `sources` step below the answer lists the A2A task state, the tables, the glossary entries and each executed SQL with its row count.
+- When the answer is ready, the line becomes a summary of the sources, for example "Used 1 definition, 2 tables and 1 query". Expand it to see the glossary definitions, the tables and each executed SQL with its row count. If nothing was used, the line is removed.
+- Tool names and raw tool results are not shown, because the UI is for business users; the log lists each executed SQL.
 - A refusal is marked with a warning; a technical error is shown as an error message.
 - The stop button cancels the run. The chat keeps its history, but a cancelled or failed question is forgotten, so the next question continues from the last complete answer.
 - The history is kept in memory and is lost when the server stops.
