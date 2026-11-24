@@ -1,0 +1,7 @@
+.dark {
+  color-scheme: dark;
+}
+
+.dark .welcome-screen {
+  background: radial-gradient(ellipse 50% 35% at 50% 40%, hsl(var(--primary) / 0.08), transparent 70%);
+}
