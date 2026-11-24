@@ -9,7 +9,7 @@ from fakes import FakeModel, agent_with, call, respond
 from langchain_core.messages import HumanMessage, ToolMessage
 
 from fablens import agent as agent_module
-from fablens.agent import aask, ask, build_agent
+from fablens.agent import MODEL_CALL_LIMIT, aask, ask, build_agent
 from fablens.models import Reply, Sources, ToolEvent, ToolFinished, ToolStarted
 
 FAILURES_PER_MODEL = (
@@ -150,6 +150,18 @@ def test_cancelled_first_turn_starts_a_fresh_thread(database: Path) -> None:
 
     assert reply.answer == "Hello."
     assert questions(agent, "t1") == ["Hi!"]
+
+
+def test_model_call_limit_stops_a_looping_turn(database: Path) -> None:
+    loop = [call("run_sql", sql="SELECT count(*) FROM machines") for _ in range(MODEL_CALL_LIMIT)]
+    agent = agent_with(*loop, respond("completed", "Hello."))
+
+    stopped = ask(agent, "How many machines are there?", "t1")
+    next_reply = ask(agent, "Hi!", "t1")
+
+    assert stopped.state == TaskState.TASK_STATE_FAILED
+    assert "did not finish" in stopped.answer
+    assert next_reply.answer == "Hello."
 
 
 def test_model_failure_gives_an_error_reply(database: Path) -> None:
