@@ -5,4 +5,5 @@
 !src/
 !.chainlit/config.toml
 !chainlit.md
+!public/
 **/__pycache__

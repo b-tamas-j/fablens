@@ -1,18 +1,19 @@
 """Chat UI: a thin Chainlit adapter over the agent core."""
 
 import functools
-import json
 import logging
 
 import chainlit as cl
 from a2a.types import TaskState
+from chainlit.config import config
 from chainlit.utils import utc_now
 from langgraph.graph.state import CompiledStateGraph
 
 from fablens.agent import aask, build_agent
 from fablens.llm import ConfigError
 from fablens.log_config import configure_logging
-from fablens.models import Reply, ToolEvent, ToolStarted
+from fablens.models import Reply, Sources, ToolEvent, ToolStarted
+from fablens.tools import glossary
 
 configure_logging()
 # Chainlit loads this file by path, so __name__ is the file path.
@@ -25,7 +26,14 @@ STARTERS = [
     "How much did the repairs of machine 17 cost?",
     "Will machine 42 fail next week?",
 ]
-REFUSAL_ALERT = ":::warning\nNot answered: the data or a definition is missing.\n:::"
+# The escaped colon keeps remark-directive from taking the block before Chainlit's alert plugin.
+REFUSAL_ALERT = "\\:::warning\nNot answered: the data or a definition is missing.\n:::"
+# Chainlit shows a step as "Using <name>" while it runs and "Used <name>" when it is done.
+PROGRESS_LABELS = {
+    "get_business_context": "business definitions",
+    "list_tables": "the data catalog",
+    "run_sql": "a database query",
+}
 
 
 @functools.cache
@@ -33,56 +41,75 @@ def shared_agent() -> CompiledStateGraph:
     return build_agent()
 
 
-def sources_markdown(reply: Reply) -> str:
-    sources = reply.sources
-    parts = [f"**A2A task state:** `{TaskState.Name(reply.state)}`"]
-    if sources.tables:
-        parts.append("**Tables:** " + ", ".join(f"`{name}`" for name in sources.tables))
+def progress_label(event: ToolStarted) -> str:
+    if event.name == "describe_table" and "table" in event.args:
+        return f"the {event.args['table']} table"
+    return PROGRESS_LABELS.get(event.name, "the data")
+
+
+def counted(count: int, singular: str, plural: str) -> str:
+    return f"{count} {singular if count == 1 else plural}"
+
+
+def sources_summary(sources: Sources) -> str:
+    parts = [
+        counted(count, singular, plural)
+        for count, singular, plural in [
+            (len(sources.glossary_terms), "definition", "definitions"),
+            (len(sources.tables), "table", "tables"),
+            (len(sources.queries), "query", "queries"),
+        ]
+        if count
+    ]
+    if len(parts) == 1:
+        return parts[0]
+    return f"{', '.join(parts[:-1])} and {parts[-1]}"
+
+
+def sources_markdown(sources: Sources) -> str:
+    parts = []
     if sources.glossary_terms:
-        terms = ", ".join(f"`{term}`" for term in sources.glossary_terms)
-        parts.append(f"**Glossary entries:** {terms}")
+        names = {term.id: term.name for term in glossary().terms}
+        terms = ", ".join(names.get(term, term) for term in sources.glossary_terms)
+        parts.append(f"**Definitions:** {terms}")
+    if sources.tables:
+        parts.append("**Tables:** " + ", ".join(sources.tables))
     for query in sources.queries:
-        rows = f"{query.row_count} row{'' if query.row_count == 1 else 's'}"
+        rows = counted(query.row_count, "row", "rows")
         if query.truncated:
-            rows += " (truncated)"
-        parts.append(f"**Executed SQL**, {rows}:\n```sql\n{query.sql}\n```")
+            rows += ", truncated"
+        parts.append(f"**Query** ({rows}):\n```sql\n{query.sql}\n```")
     return "\n\n".join(parts)
 
 
-async def show_tool_event(event: ToolEvent, steps: dict[str, cl.Step]) -> None:
-    if isinstance(event, ToolStarted):
-        is_sql = event.name == "run_sql"
-        step = cl.Step(
-            name=event.name,
-            type="tool",
-            parent_id=cl.context.current_step.id,
-            show_input="sql" if is_sql else "json",
-        )
-        step.input = event.args["sql"] if is_sql else event.args
-        step.start = utc_now()
-        steps[event.call_id] = step
-        await step.send()
+async def show_progress(event: ToolEvent, progress: cl.Step) -> None:
+    if not isinstance(event, ToolStarted):
         return
-    step = steps.pop(event.call_id)
-    step.output = event.output if event.error else json.loads(event.output)
-    step.is_error = event.error
-    step.end = utc_now()
-    await step.update()
+    progress.name = progress_label(event)
+    if progress.start is None:
+        progress.start = utc_now()
+        await progress.send()
+    else:
+        await progress.update()
 
 
-async def show_reply(reply: Reply) -> None:
+async def show_reply(reply: Reply, progress: cl.Step) -> None:
+    sources = reply.sources
+    if progress.start is not None:
+        if sources.glossary_terms or sources.tables or sources.queries:
+            progress.name = sources_summary(sources)
+            progress.output = sources_markdown(sources)
+            progress.end = utc_now()
+            await progress.update()
+        else:
+            await progress.remove()
     if reply.state == TaskState.TASK_STATE_FAILED:
         await cl.ErrorMessage(content=reply.answer).send()
         return
     content = reply.answer
     if reply.state == TaskState.TASK_STATE_REJECTED:
         content = f"{REFUSAL_ALERT}\n\n{content}"
-    answer = cl.Message(content=content)
-    await answer.send()
-    sources = cl.Step(name="sources", type="tool", parent_id=answer.id, show_input=False)
-    sources.output = sources_markdown(reply)
-    sources.start = sources.end = utc_now()
-    await sources.send()
+    await cl.Message(content=content).send()
 
 
 @cl.set_starters
@@ -97,14 +124,20 @@ async def on_message(message: cl.Message) -> None:
     except ConfigError as exc:
         await cl.ErrorMessage(content=str(exc)).send()
         return
-    steps: dict[str, cl.Step] = {}
+    # The avatar name keeps the FabLens avatar while the step name changes.
+    progress = cl.Step(
+        type="tool",
+        parent_id=cl.context.current_step.id,
+        metadata={"avatarName": config.ui.name},
+        show_input=False,
+    )
     reply = await aask(
         agent,
         message.content,
         cl.context.session.thread_id,
-        functools.partial(show_tool_event, steps=steps),
+        functools.partial(show_progress, progress=progress),
     )
-    await show_reply(reply)
+    await show_reply(reply, progress)
 
 
 @cl.on_stop
