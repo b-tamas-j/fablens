@@ -131,7 +131,7 @@ The app is not started with `chainlit run`, because that command enables nest_as
 
 ## Design
 
-The logo shows a wafer from above, with its orientation notch at the bottom. A lens magnifies one die: the agent looks at a specific part of the data and shows where its answer comes from. Amber is the yellow light of a lithography room; it marks what the agent focuses on.
+The logo shows a wafer from above, with its orientation notch at the bottom, as a sign of semiconductor manufacturing equipment. Each die stands for one machine of the fleet, and the lens magnifies the one a question is about: the agent looks at a specific part of the data and shows where its answer comes from. Amber is the yellow light of a lithography room; it marks what the agent focuses on.
 
 | Colour | Hex | Use |
 | --- | --- | --- |
