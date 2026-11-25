@@ -20,7 +20,23 @@ uv sync
 cp .env.example .env
 ```
 
-Fill in the API keys in `.env`. `LLM_MODEL` is the primary model, `LLM_FALLBACK_MODEL` is used when the primary fails. Both default models have a free tier: a [Groq key](https://console.groq.com/keys) is required, a [Gemini key](https://aistudio.google.com/apikey) only for the fallback; without it, leave `LLM_FALLBACK_MODEL` empty. `.env` is git-ignored; never commit it.
+Fill in `.env` as described in [Configuration](#configuration). `.env` is git-ignored; never commit it.
+
+## Configuration
+
+FabLens reads its settings from environment variables or `.env`:
+
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `LLM_MODEL` | Yes | | Primary model, as a LangChain `provider:model` name |
+| `LLM_FALLBACK_MODEL` | No | | Model used when a call to the primary model fails |
+| `GROQ_API_KEY` | For Groq models | | API key of the default primary model |
+| `GOOGLE_API_KEY` | For Gemini models | | API key of the default fallback model |
+| `DATA_DIR` | No | `data` | Folder of the raw CSV files and the DuckDB database |
+| `LOG_LEVEL` | No | `INFO` | Log level; `DEBUG` also logs the questions |
+| `PUBLIC_URL` | No | `http://localhost:8000` | Server address in the A2A agent card |
+
+Both default models have a free tier: a [Groq key](https://console.groq.com/keys) is required, a [Gemini key](https://aistudio.google.com/apikey) only for the fallback. With a Groq key only, leave `LLM_FALLBACK_MODEL` empty.
 
 ## Data
 
