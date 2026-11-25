@@ -80,7 +80,7 @@ def test_answer_comes_with_sources_artifact(database: Path) -> None:
     assert artifact["name"] == "sources"
     sources = artifact["parts"][0]["data"]
     assert sources["tables"] == ["machines"]
-    assert sources["queries"] == [{"sql": MACHINE_COUNT, "row_count": 1, "truncated": False}]
+    assert sources["queries"] == [{"row_count": 1, "truncated": False}]
 
 
 def test_refusal_is_a_rejected_task() -> None:

@@ -13,7 +13,6 @@ from fablens.agent import aask, build_agent
 from fablens.llm import ConfigError
 from fablens.log_config import configure_logging
 from fablens.models import Reply, Sources, ToolEvent, ToolStarted
-from fablens.tools import glossary
 
 configure_logging()
 # Chainlit loads this file by path, so __name__ is the file path.
@@ -32,8 +31,17 @@ REFUSAL_ALERT = "\\:::warning\nNot answered: the data or a definition is missing
 PROGRESS_LABELS = {
     "get_business_context": "business definitions",
     "list_tables": "the data catalog",
+    "describe_table": "the data catalog",
     "run_sql": "a database query",
 }
+TOOL_LABELS = {
+    "get_business_context": "glossary lookup",
+    "list_tables": "schema lookup",
+    "describe_table": "schema lookup",
+    "run_sql": "SQL query",
+}
+DATABASE_TOOLS = {"list_tables", "describe_table", "run_sql"}
+DATA_SOURCE = "equipment and service database"
 
 
 @functools.cache
@@ -43,54 +51,54 @@ def shared_agent() -> CompiledStateGraph:
 
 
 def progress_label(event: ToolStarted) -> str:
-    """Plain-language name of what a tool call uses, shown while the agent works."""
-    if event.name == "describe_table" and "table" in event.args:
-        return f"the {event.args['table']} table"
+    """Plain-language name of what a tool call uses, without table names or SQL."""
     return PROGRESS_LABELS.get(event.name, "the data")
 
 
 def counted(count: int, singular: str, plural: str) -> str:
-    """Count with the matching noun, for example `1 table` or `2 tables`."""
+    """Count with the matching noun, for example `1 row` or `2 rows`."""
     return f"{count} {singular if count == 1 else plural}"
 
 
-def sources_summary(sources: Sources) -> str:
-    """One-line summary of the sources, for example `1 definition, 2 tables and 1 query`."""
+def joined(parts: list[str]) -> str:
+    """Join with commas and a final `and`, for example `a, b and c`."""
+    if len(parts) <= 1:
+        return "".join(parts)
+    return f"{', '.join(parts[:-1])} and {parts[-1]}"
+
+
+def tool_labels(tools: list[str]) -> list[str]:
+    """Generic labels of the called tools, without duplicates."""
+    return list(dict.fromkeys(TOOL_LABELS.get(name, "data lookup") for name in tools))
+
+
+def sources_summary(sources: Sources, tools: list[str]) -> str:
+    """One-line summary, for example `1 definition and 1 database query`, else the tools."""
     parts = [
         counted(count, singular, plural)
         for count, singular, plural in [
             (len(sources.glossary_terms), "definition", "definitions"),
-            (len(sources.tables), "table", "tables"),
-            (len(sources.queries), "query", "queries"),
+            (len(sources.queries), "database query", "database queries"),
         ]
         if count
     ]
-    if len(parts) == 1:
-        return parts[0]
-    return f"{', '.join(parts[:-1])} and {parts[-1]}"
+    return joined(parts or tool_labels(tools))
 
 
-def sources_markdown(sources: Sources) -> str:
-    """Definitions, tables and each query with its row count, as Markdown."""
-    parts = []
-    if sources.glossary_terms:
-        names = {term.id: term.name for term in glossary().terms}
-        terms = ", ".join(names.get(term, term) for term in sources.glossary_terms)
-        parts.append(f"**Definitions:** {terms}")
-    if sources.tables:
-        parts.append("**Tables:** " + ", ".join(sources.tables))
-    for query in sources.queries:
-        rows = counted(query.row_count, "row", "rows")
-        if query.truncated:
-            rows += ", truncated"
-        parts.append(f"**Query** ({rows}):\n```sql\n{query.sql}\n```")
+def sources_markdown(tools: list[str]) -> str:
+    """The called tools and the data source, as Markdown."""
+    parts = ["**Tools:** " + ", ".join(tool_labels(tools))]
+    if DATABASE_TOOLS.intersection(tools):
+        parts.append(f"**Data source:** {DATA_SOURCE}")
     return "\n\n".join(parts)
 
 
-async def show_progress(event: ToolEvent, progress: cl.Step) -> None:
-    """Show what the current tool call uses in the progress step."""
+async def show_progress(event: ToolEvent, progress: cl.Step, tools: list[str]) -> None:
+    """Show what the current tool call uses in the progress step and record the tool."""
     if not isinstance(event, ToolStarted):
         return
+    if event.name not in tools:
+        tools.append(event.name)
     progress.name = progress_label(event)
     if progress.start is None:
         progress.start = utc_now()
@@ -99,17 +107,13 @@ async def show_progress(event: ToolEvent, progress: cl.Step) -> None:
         await progress.update()
 
 
-async def show_reply(reply: Reply, progress: cl.Step) -> None:
+async def show_reply(reply: Reply, progress: cl.Step, tools: list[str]) -> None:
     """Turn the progress step into the sources summary, then send the answer."""
-    sources = reply.sources
     if progress.start is not None:
-        if sources.glossary_terms or sources.tables or sources.queries:
-            progress.name = sources_summary(sources)
-            progress.output = sources_markdown(sources)
-            progress.end = utc_now()
-            await progress.update()
-        else:
-            await progress.remove()
+        progress.name = sources_summary(reply.sources, tools)
+        progress.output = sources_markdown(tools)
+        progress.end = utc_now()
+        await progress.update()
     if reply.state == TaskState.TASK_STATE_FAILED:
         await cl.ErrorMessage(content=reply.answer).send()
         return
@@ -140,13 +144,14 @@ async def on_message(message: cl.Message) -> None:
         metadata={"avatarName": config.ui.name},
         show_input=False,
     )
+    tools: list[str] = []
     reply = await aask(
         agent,
         message.content,
         cl.context.session.thread_id,
-        functools.partial(show_progress, progress=progress),
+        functools.partial(show_progress, progress=progress, tools=tools),
     )
-    await show_reply(reply, progress)
+    await show_reply(reply, progress, tools)
 
 
 @cl.on_stop
