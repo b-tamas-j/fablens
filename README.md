@@ -140,7 +140,7 @@ Open http://localhost:8000. The start screen offers the demo questions.
 - While the agent works, one line shows in plain words what it is using, for example "Using a database query".
 - The answer arrives in one piece, because the model returns it as one structured tool call.
 - When the answer is ready, the line becomes a summary of the sources, for example "Used 1 definition and 1 database query". Expand it to see the glossary definitions and the row count of each query. If nothing was used, the line is removed.
-- Tool names, table names, SQL and raw tool results are not shown, so the UI does not expose the data model to business users. The full sources with the executed SQL are in the log and in the A2A `sources` artifact.
+- Tool names, table names, SQL and raw tool results are not shown, so the UI does not expose the data model to business users. The A2A `sources` artifact lists the tables; the executed SQL is only in the log.
 - A refusal is marked with a warning; a technical error is shown as an error message.
 - The stop button cancels the run. The chat keeps its history, but a cancelled or failed question is forgotten, so the next question continues from the last complete answer.
 - The history is kept in memory and is lost when the server stops.
@@ -173,7 +173,7 @@ The same server lets other agents call FabLens over [A2A](https://a2a-protocol.o
 - Agent card: http://localhost:8000/.well-known/agent-card.json
 - JSON-RPC endpoint: `http://localhost:8000/a2a`, for example `SendMessage`, `SendStreamingMessage`, `GetTask` and `CancelTask`. Each request needs the header `A2A-Version: 1.0`.
 
-Each question is one task. Its final state is the reply state (`TASK_STATE_COMPLETED`, `TASK_STATE_REJECTED` or `TASK_STATE_FAILED`), and the answer is the message of the final status. A completed or rejected task also has a `sources` artifact with the tables, the executed SQL with row count and the glossary terms. A streaming request also gets a working status for each tool call. A follow-up question with the same `contextId` continues the conversation.
+Each question is one task. Its final state is the reply state (`TASK_STATE_COMPLETED`, `TASK_STATE_REJECTED` or `TASK_STATE_FAILED`), and the answer is the message of the final status. A completed or rejected task also has a `sources` artifact with the tables, the row count of each query and the glossary terms. The executed SQL is not part of the artifact; it is only in the log. A streaming request also gets a working status for each tool call. A follow-up question with the same `contextId` continues the conversation.
 
 ```python
 import uuid

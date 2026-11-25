@@ -51,7 +51,7 @@ def agent_card(public_url: str) -> AgentCard:
                 description="Answers questions about machines, telemetry, errors, maintenance "
                 "and failures from the data, with KPI definitions from a glossary. "
                 f"The answer is the final status message; the {SOURCES_ARTIFACT} artifact lists "
-                "the tables, the executed SQL with row counts and the glossary entries used.",
+                "the tables, the row count of each query and the glossary entries used.",
                 tags=["predictive maintenance", "equipment data", "KPI", "SQL"],
                 examples=[
                     "Which machine model had the most failures in 2015?",
@@ -88,9 +88,9 @@ class FabLensExecutor(AgentExecutor):
 
         reply = await aask(agent, context.get_user_input(), context.context_id, report)
         if reply.state != TaskState.TASK_STATE_FAILED:
-            await updater.add_artifact(
-                [new_data_part(reply.sources.model_dump())], name=SOURCES_ARTIFACT
-            )
+            # The executed SQL stays in the log, so callers do not see the queries.
+            sources = reply.sources.model_dump(exclude={"queries": {"__all__": {"sql"}}})
+            await updater.add_artifact([new_data_part(sources)], name=SOURCES_ARTIFACT)
         answer = updater.new_agent_message([new_text_part(reply.answer)])
         await updater.update_status(reply.state, answer)
 
