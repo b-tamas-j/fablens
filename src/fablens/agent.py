@@ -13,6 +13,7 @@ from a2a.types import TaskState
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
+    ModelCallLimitMiddleware,
     ModelFallbackMiddleware,
     ModelRequest,
     ModelResponse,
@@ -47,6 +48,8 @@ from fablens.prompts import SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
 
 RESPONSE_TOOL = "agent_response"
+# About twice the model calls of the most complex demo question.
+MODEL_CALL_LIMIT = 12
 
 
 def as_langchain_tool(func: Callable[..., Any]) -> BaseTool:
@@ -87,7 +90,10 @@ async def log_model_errors(
 
 def build_agent(model: BaseChatModel | None = None) -> CompiledStateGraph:
     """Create the agent; without a model, use the models configured in the environment."""
-    middleware: list[AgentMiddleware] = [ToolErrorMiddleware(on_error=tool_error_message)]
+    middleware: list[AgentMiddleware] = [
+        ModelCallLimitMiddleware(run_limit=MODEL_CALL_LIMIT),
+        ToolErrorMiddleware(on_error=tool_error_message),
+    ]
     if model is None:
         model, fallback = chat_models()
         if fallback is not None:
@@ -176,7 +182,7 @@ def make_reply(state: dict[str, Any]) -> Reply:
     if response is None:
         return Reply(
             state=TaskState.TASK_STATE_FAILED,
-            answer="The agent did not finish its answer. Try again.",
+            answer="The agent did not finish its answer. Try again or ask a narrower question.",
         )
     return Reply(
         state=FINAL_STATES[response.state],

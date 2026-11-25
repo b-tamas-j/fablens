@@ -92,6 +92,8 @@ The database connection is read-only, and file, network and configuration access
 
 Each reply has an [A2A](https://a2a-protocol.org/) task state, the answer, and sources that the code collects from the tool calls: tables, executed SQL with row count, and glossary terms. The state is `TASK_STATE_COMPLETED` for an answer from the data, `TASK_STATE_REJECTED` when the data or a definition is missing, and `TASK_STATE_FAILED` for a technical error.
 
+A question may use at most 12 model calls; a looping agent stops with `TASK_STATE_FAILED`.
+
 The agent uses `LLM_MODEL` and switches to `LLM_FALLBACK_MODEL` when a model call fails. Any LangChain `provider:model` name works; for a local model, run `uv add langchain-ollama` and set `LLM_MODEL=ollama:<model>`.
 
 Try it from Python:
