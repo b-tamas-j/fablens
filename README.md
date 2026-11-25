@@ -20,7 +20,7 @@ uv sync
 cp .env.example .env
 ```
 
-Fill in the API keys in `.env`. `LLM_MODEL` is the primary model, `LLM_FALLBACK_MODEL` is used when the primary fails. `.env` is git-ignored; never commit it.
+Fill in the API keys in `.env`. `LLM_MODEL` is the primary model, `LLM_FALLBACK_MODEL` is used when the primary fails. Both default models have a free tier: a [Groq key](https://console.groq.com/keys) is required, a [Gemini key](https://aistudio.google.com/apikey) only for the fallback; without it, leave `LLM_FALLBACK_MODEL` empty. `.env` is git-ignored; never commit it.
 
 ## Data
 
