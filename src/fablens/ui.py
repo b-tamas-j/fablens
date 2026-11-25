@@ -13,7 +13,6 @@ from fablens.agent import aask, build_agent
 from fablens.llm import ConfigError
 from fablens.log_config import configure_logging
 from fablens.models import Reply, Sources, ToolEvent, ToolStarted
-from fablens.tools import glossary
 
 configure_logging()
 # Chainlit loads this file by path, so __name__ is the file path.
@@ -42,7 +41,7 @@ TOOL_LABELS = {
     "run_sql": "SQL query",
 }
 DATABASE_TOOLS = {"list_tables", "describe_table", "run_sql"}
-DATA_SOURCE = "equipment and service database (DuckDB, read-only)"
+DATA_SOURCE = "equipment and service database"
 
 
 @functools.cache
@@ -86,21 +85,11 @@ def sources_summary(sources: Sources, tools: list[str]) -> str:
     return joined(parts or tool_labels(tools))
 
 
-def sources_markdown(sources: Sources, tools: list[str]) -> str:
-    """Tools, data source, definitions and the row count of each query, as Markdown."""
+def sources_markdown(tools: list[str]) -> str:
+    """The called tools and the data source, as Markdown."""
     parts = ["**Tools:** " + ", ".join(tool_labels(tools))]
     if DATABASE_TOOLS.intersection(tools):
         parts.append(f"**Data source:** {DATA_SOURCE}")
-    if sources.glossary_terms:
-        names = {term.id: term.name for term in glossary().terms}
-        terms = ", ".join(names.get(term, term) for term in sources.glossary_terms)
-        parts.append(f"**Definitions:** {terms}")
-    if sources.queries:
-        results = []
-        for query in sources.queries:
-            rows = counted(query.row_count, "row", "rows")
-            results.append(f"{rows}, truncated" if query.truncated else rows)
-        parts.append("**Query results:** " + "; ".join(results))
     return "\n\n".join(parts)
 
 
@@ -122,7 +111,7 @@ async def show_reply(reply: Reply, progress: cl.Step, tools: list[str]) -> None:
     """Turn the progress step into the sources summary, then send the answer."""
     if progress.start is not None:
         progress.name = sources_summary(reply.sources, tools)
-        progress.output = sources_markdown(reply.sources, tools)
+        progress.output = sources_markdown(tools)
         progress.end = utc_now()
         await progress.update()
     if reply.state == TaskState.TASK_STATE_FAILED:

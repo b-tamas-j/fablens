@@ -139,7 +139,7 @@ Open http://localhost:8000. The start screen offers the demo questions.
 
 - While the agent works, one line shows in plain words what it is using, for example "Using a database query".
 - The answer arrives in one piece, because the model returns it as one structured tool call.
-- When the answer is ready, the line becomes a summary of the sources, for example "Used 1 definition and 1 database query". Expand it to see the tools in generic terms (glossary lookup, schema lookup, SQL query), the data source, the glossary definitions and the row count of each query.
+- When the answer is ready, the line becomes a summary of the sources, for example "Used 1 definition and 1 database query". Expand it to see the tools in generic terms (glossary lookup, schema lookup, SQL query) and the data source.
 - Internal tool names, table names, SQL and raw tool results are not shown, so the UI does not expose the data model to business users. The A2A `sources` artifact lists the tables; the executed SQL is only in the log.
 - A refusal is marked with a warning; a technical error is shown as an error message.
 - The stop button cancels the run. The chat keeps its history, but a cancelled or failed question is forgotten, so the next question continues from the last complete answer.
