@@ -98,6 +98,7 @@ For an equipment manufacturer, export control is a key aspect: design data and c
 | --- | --- |
 | Local use, no authentication | Gateway with SSO; user identity passed to the data source (row-level security) |
 | In-memory conversations and tasks | Persistent session and task store |
+| Full chat history sent on every model call | Long conversations trimmed or summarized to stay within the context and cost budget |
 | In-process tools | MCP servers next to each data source |
 | `glossary.yaml` | Semantic layer and data catalog owned by data stewards |
 | Free-tier model APIs | LLM gateway with enterprise contracts and an EU region |
