@@ -32,6 +32,7 @@ REFUSAL_ALERT = "\\:::warning\nNot answered: the data or a definition is missing
 PROGRESS_LABELS = {
     "get_business_context": "business definitions",
     "list_tables": "the data catalog",
+    "describe_table": "the data catalog",
     "run_sql": "a database query",
 }
 
@@ -43,25 +44,22 @@ def shared_agent() -> CompiledStateGraph:
 
 
 def progress_label(event: ToolStarted) -> str:
-    """Plain-language name of what a tool call uses, shown while the agent works."""
-    if event.name == "describe_table" and "table" in event.args:
-        return f"the {event.args['table']} table"
+    """Plain-language name of what a tool call uses, without table names or SQL."""
     return PROGRESS_LABELS.get(event.name, "the data")
 
 
 def counted(count: int, singular: str, plural: str) -> str:
-    """Count with the matching noun, for example `1 table` or `2 tables`."""
+    """Count with the matching noun, for example `1 row` or `2 rows`."""
     return f"{count} {singular if count == 1 else plural}"
 
 
 def sources_summary(sources: Sources) -> str:
-    """One-line summary of the sources, for example `1 definition, 2 tables and 1 query`."""
+    """One-line summary of the sources, for example `1 definition and 1 database query`."""
     parts = [
         counted(count, singular, plural)
         for count, singular, plural in [
             (len(sources.glossary_terms), "definition", "definitions"),
-            (len(sources.tables), "table", "tables"),
-            (len(sources.queries), "query", "queries"),
+            (len(sources.queries), "database query", "database queries"),
         ]
         if count
     ]
@@ -71,19 +69,18 @@ def sources_summary(sources: Sources) -> str:
 
 
 def sources_markdown(sources: Sources) -> str:
-    """Definitions, tables and each query with its row count, as Markdown."""
+    """Definitions used and the row count of each query, as Markdown."""
     parts = []
     if sources.glossary_terms:
         names = {term.id: term.name for term in glossary().terms}
         terms = ", ".join(names.get(term, term) for term in sources.glossary_terms)
         parts.append(f"**Definitions:** {terms}")
-    if sources.tables:
-        parts.append("**Tables:** " + ", ".join(sources.tables))
-    for query in sources.queries:
-        rows = counted(query.row_count, "row", "rows")
-        if query.truncated:
-            rows += ", truncated"
-        parts.append(f"**Query** ({rows}):\n```sql\n{query.sql}\n```")
+    if sources.queries:
+        results = []
+        for query in sources.queries:
+            rows = counted(query.row_count, "row", "rows")
+            results.append(f"{rows}, truncated" if query.truncated else rows)
+        parts.append("**Query results:** " + "; ".join(results))
     return "\n\n".join(parts)
 
 
@@ -103,7 +100,7 @@ async def show_reply(reply: Reply, progress: cl.Step) -> None:
     """Turn the progress step into the sources summary, then send the answer."""
     sources = reply.sources
     if progress.start is not None:
-        if sources.glossary_terms or sources.tables or sources.queries:
+        if sources.glossary_terms or sources.queries:
             progress.name = sources_summary(sources)
             progress.output = sources_markdown(sources)
             progress.end = utc_now()
