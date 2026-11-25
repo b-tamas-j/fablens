@@ -29,14 +29,17 @@ TABLE_FILES = {
 
 
 def data_dir() -> Path:
+    """Data folder from DATA_DIR, default `data`."""
     return Path(os.environ.get("DATA_DIR", "data"))
 
 
 def db_path() -> Path:
+    """Path of the DuckDB database file in the data folder."""
     return data_dir() / "fablens.duckdb"
 
 
 def missing_files(raw_dir: Path) -> list[str]:
+    """Dataset CSV files that are not in raw_dir."""
     return [name for name in TABLE_FILES.values() if not (raw_dir / name).is_file()]
 
 
@@ -76,6 +79,7 @@ def build_database(raw_dir: Path, target: Path) -> dict[str, int]:
 
 
 def main() -> None:
+    """Download the dataset if needed, build the database and log the row counts."""
     configure_logging()
     raw_dir = data_dir() / "raw"
     if missing_files(raw_dir):

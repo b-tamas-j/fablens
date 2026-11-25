@@ -1,3 +1,5 @@
+"""Shared fixtures: a small sample dataset and a database built from it."""
+
 from pathlib import Path
 
 import pytest
@@ -24,11 +26,13 @@ SAMPLE_CSVS = {
 
 @pytest.fixture
 def sample_csvs() -> dict[str, str]:
+    """Contents of the five dataset CSV files, a few rows each."""
     return dict(SAMPLE_CSVS)
 
 
 @pytest.fixture
 def raw_dir(tmp_path: Path, sample_csvs: dict[str, str]) -> Path:
+    """Folder with the sample CSV files."""
     raw = tmp_path / "raw"
     raw.mkdir()
     for name, content in sample_csvs.items():
@@ -38,6 +42,7 @@ def raw_dir(tmp_path: Path, sample_csvs: dict[str, str]) -> Path:
 
 @pytest.fixture
 def database(raw_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Sample database, with DATA_DIR pointing to its folder."""
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     build_database(raw_dir, db_path())
     return db_path()

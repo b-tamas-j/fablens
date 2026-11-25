@@ -12,6 +12,7 @@ class ConfigError(Exception):
 
 
 def create_model(name: str) -> BaseChatModel:
+    """Create a chat model from a LangChain `provider:model` name; raise ConfigError if it fails."""
     try:
         return init_chat_model(name)
     except Exception as exc:

@@ -28,30 +28,40 @@ A2ATaskState = Annotated[TaskState.ValueType, PlainSerializer(TaskState.Name, re
 
 
 class QueryTrace(BaseModel):
+    """An executed SQL query with its row count."""
+
     sql: str
     row_count: int
     truncated: bool
 
 
 class Sources(BaseModel):
+    """What an answer is based on: tables, executed queries and glossary terms."""
+
     tables: list[str] = []
     queries: list[QueryTrace] = []
     glossary_terms: list[str] = []
 
 
 class Reply(BaseModel):
+    """Reply for the interfaces: A2A task state, answer and sources."""
+
     state: A2ATaskState
     answer: str
     sources: Sources = Field(default_factory=Sources)
 
 
 class ToolStarted(BaseModel):
+    """The agent called a tool."""
+
     call_id: str
     name: str
     args: dict[str, Any]
 
 
 class ToolFinished(BaseModel):
+    """A tool call returned a result or an error."""
+
     call_id: str
     name: str
     output: str

@@ -32,7 +32,12 @@ dev = [
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["E", "F", "I", "B", "UP", "D1"]
+ignore = ["D105", "D107"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test names describe the behaviour; shared fixtures and fakes still have docstrings.
+"tests/**" = ["D1"]
 
 [tool.pytest]
 testpaths = ["tests"]

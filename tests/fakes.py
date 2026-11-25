@@ -14,17 +14,22 @@ call_ids = count()
 
 
 class FakeModel(GenericFakeChatModel):
+    """Chat model that returns the scripted messages in order."""
+
     def bind_tools(self, tools: Sequence[Any], **kwargs: Any) -> FakeModel:
         return self
 
 
 def call(name: str, **args: str) -> AIMessage:
+    """AI message that calls one tool."""
     return AIMessage("", tool_calls=[{"name": name, "args": args, "id": f"call{next(call_ids)}"}])
 
 
 def respond(state: str, answer: str) -> AIMessage:
+    """AI message with the final structured answer."""
     return call("agent_response", state=state, answer=answer)
 
 
 def agent_with(*messages: AIMessage) -> CompiledStateGraph:
+    """Agent whose model returns the given messages in order."""
     return build_agent(FakeModel(messages=iter(messages)))
