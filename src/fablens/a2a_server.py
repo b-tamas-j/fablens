@@ -28,6 +28,7 @@ SOURCES_ARTIFACT = "sources"
 
 
 def agent_card(public_url: str) -> AgentCard:
+    """Describe FabLens for other agents: the JSON-RPC endpoint, streaming and the Q&A skill."""
     return AgentCard(
         name="FabLens",
         description="Answers questions about equipment and service data with traceable sources. "
@@ -69,6 +70,7 @@ class FabLensExecutor(AgentExecutor):
         self.agent_factory = agent_factory
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        """Answer the question, report tool calls as working updates, end with the reply state."""
         if context.current_task is None:
             await event_queue.enqueue_event(new_task_from_user_message(context.message))
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
@@ -93,6 +95,7 @@ class FabLensExecutor(AgentExecutor):
         await updater.update_status(reply.state, answer)
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        """Mark the task as cancelled."""
         await TaskUpdater(event_queue, context.task_id, context.context_id).cancel()
 
 

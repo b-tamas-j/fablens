@@ -30,24 +30,32 @@ class ToolError(Exception):
 
 
 class TableInfo(BaseModel):
+    """A table with its business description and row count."""
+
     name: str
     description: str | None
     row_count: int
 
 
 class ColumnInfo(BaseModel):
+    """A column with its SQL type and business meaning."""
+
     name: str
     type: str
     description: str | None
 
 
 class TableDescription(BaseModel):
+    """A table with its business description and columns."""
+
     name: str
     description: str | None
     columns: list[ColumnInfo]
 
 
 class QueryResult(BaseModel):
+    """Rows of a query with the provenance for the sources: SQL, tables and row count."""
+
     sql: str
     tables: list[str]
     columns: list[str]
@@ -57,6 +65,8 @@ class QueryResult(BaseModel):
 
 
 class BusinessContext(BaseModel):
+    """Glossary terms that match a question; all term names if none match."""
+
     question: str
     terms: list[Term]
     available_terms: list[str]
@@ -64,10 +74,12 @@ class BusinessContext(BaseModel):
 
 @cache
 def glossary() -> Glossary:
+    """The glossary, loaded once."""
     return load_glossary()
 
 
 def connect() -> duckdb.DuckDBPyConnection:
+    """Open the database read-only, without file, network or configuration access."""
     path = db_path()
     if not path.is_file():
         raise ToolError(f"Database {path} not found. Run: uv run python -m fablens.ingest")
@@ -75,6 +87,7 @@ def connect() -> duckdb.DuckDBPyConnection:
 
 
 def table_names(con: duckdb.DuckDBPyConnection) -> list[str]:
+    """Names of the tables in the database."""
     rows = con.execute(
         "SELECT table_name FROM information_schema.tables ORDER BY table_name"
     ).fetchall()
@@ -82,6 +95,7 @@ def table_names(con: duckdb.DuckDBPyConnection) -> list[str]:
 
 
 def check_select(query: str) -> None:
+    """Raise a ToolError unless the query is a single SELECT statement."""
     try:
         statements = duckdb.extract_statements(query)
     except duckdb.Error as exc:
@@ -91,6 +105,7 @@ def check_select(query: str) -> None:
 
 
 def referenced_tables(query: str, known: list[str]) -> list[str]:
+    """Known tables that the query references."""
     # get_table_names() fails on USING joins in DuckDB 2.0, so match identifier tokens instead.
     tokens = duckdb.tokenize(query)
     ends = [start for start, _ in tokens[1:]] + [len(query)]

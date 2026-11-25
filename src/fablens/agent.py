@@ -70,6 +70,7 @@ TOOLS = [
 
 
 def tool_error_message(exc: Exception, request: ToolCallRequest) -> str | None:
+    """Send a ToolError back to the model so it can correct the call; other errors propagate."""
     if not isinstance(exc, tools.ToolError):
         return None
     call = request.tool_call
@@ -81,6 +82,7 @@ def tool_error_message(exc: Exception, request: ToolCallRequest) -> str | None:
 async def log_model_errors(
     request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
 ) -> ModelResponse:
+    """Log each failed model call, also when the fallback model then answers."""
     try:
         return await handler(request)
     except Exception as exc:
@@ -178,6 +180,7 @@ async def resume_point(agent: CompiledStateGraph, thread_id: str) -> RunnableCon
 
 
 def make_reply(state: dict[str, Any]) -> Reply:
+    """Turn the final agent state into a reply; without a structured response the turn failed."""
     response = state.get("structured_response")
     if response is None:
         return Reply(

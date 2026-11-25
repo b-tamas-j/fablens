@@ -25,6 +25,7 @@ app = FastAPI(title="FabLens")
 
 @app.get("/", include_in_schema=False)
 def index() -> RedirectResponse:
+    """Redirect the root to the chat UI."""
     return RedirectResponse("/chat")
 
 
